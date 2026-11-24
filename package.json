@@ -1,0 +1,1 @@
+{"description":"麻雀の点数計算アプリの回帰テスト","devDependencies":{"@playwright/test":"^1.49.1"},"name":"mahjong-score-calculator-app","private":true,"scripts":{"test":"playwright test"},"type":"module","version":"1.0.0"}
