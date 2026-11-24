@@ -1,0 +1,1587 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>麻雀の点数計算アプリ</title>
+    <meta name="application-name" content="麻雀の点数計算アプリ" />
+    <meta name="apple-mobile-web-app-title" content="麻雀の点数計算アプリ" />
+    <meta property="og:site_name" content="麻雀の点数計算アプリ" />
+    <meta name="description" content="麻雀の点数を符と翻数から計算するアプリ" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="麻雀の点数計算アプリ" />
+    <meta property="og:description" content="麻雀の点数を符と翻数から計算するアプリ" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="麻雀の点数計算アプリ" />
+    <meta name="twitter:description" content="麻雀の点数を符と翻数から計算するアプリ" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Shippori+Mincho+B1:wght@700;800&display=swap" rel="stylesheet" />
+    <style>
+      /* ===== カラーパレット（ライト / ダーク） ===== */
+      :root {
+        --bg: #eef2ec;
+        --surface: #ffffff;
+        --surface-2: #f4f7f2;
+        --ink: #1d2b23;
+        --muted: #5c6f63;
+        --line: #d3ddd2;
+        --felt: #0d5c39;
+        --felt-deep: #084a2e;
+        --felt-ink: #f5f1e3;
+        --accent: #b3372a;
+        --gold: #a97b12;
+        --chip-bg: #ffffff;
+        --chip-ink: #1d2b23;
+        --selected-bg: #0d5c39;
+        --selected-ink: #ffffff;
+        --highlight-bg: #ffd94d;
+        --highlight-ink: #1d2b23;
+        --highlight-ring: #b8860b;
+        --highlight-soft: #fff0b3;
+        --guide-line: #b8860b;
+        --table-num: #879a8c;
+        --table-num-sub: #879a8c;
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0c130f;
+          --surface: #16211a;
+          --surface-2: #1b291f;
+          --ink: #e9f1ea;
+          --muted: #9db3a4;
+          --line: #2c3f33;
+          --felt: #0e6b41;
+          --felt-deep: #093d26;
+          --felt-ink: #f5f1e3;
+          --accent: #e0685a;
+          --gold: #d9ab3c;
+          --chip-bg: #1b291f;
+          --chip-ink: #e9f1ea;
+          --selected-bg: #1d8a54;
+          --selected-ink: #ffffff;
+          --highlight-bg: #ffd94d;
+          --highlight-ink: #1d2b23;
+          --highlight-ring: #e6b800;
+          --highlight-soft: #4a3d12;
+          --guide-line: #e6b800;
+          --table-num: #8aa191;
+          --table-num-sub: #8aa191;
+          color-scheme: dark;
+        }
+      }
+
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; height: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+        line-height: 1.6;
+        /* アプリ内表示（スマホ）では、ページ全体が外側のスクロールに流されると
+           sticky / fixed のヘッダーも一緒に流れてしまう。そのため、画面の高さで
+           body を固定し、スクロールは内側の .wrap だけに閉じ込める。
+           ヘッダーは .wrap の中で sticky 固定するので、スマホでもPCでも
+           常に画面上部に残り、幅も本文と必ず一致する（見切れが起きない） */
+        height: 100vh;
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      button { font-family: inherit; cursor: pointer; }
+
+      .wrap {
+        max-width: 1040px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 0 16px 48px;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+      }
+      @media print {
+        body { height: auto; overflow: visible; }
+        .wrap { overflow: visible; }
+        .page-head { position: static; }
+      }
+
+      /* ===== レイアウト：上段（1左 / 2右上 / 3右下）＋ 下段（4全幅） ===== */
+      .layout-top {
+        display: grid;
+        grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+        /* 右列は上が伸び、下（内訳）は中身の高さだけにする：
+           内訳がスリムになった分、結果カードが大きくなる */
+        grid-template-rows: 1fr auto;
+        grid-template-areas:
+          "input result"
+          "input breakdown";
+        gap: 16px;
+        margin-bottom: 16px;
+        align-items: stretch;
+      }
+      .panel-input { grid-area: input; margin-bottom: 0; min-width: 0; }
+      .panel-result {
+        grid-area: result;
+        margin-bottom: 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .panel-breakdown { grid-area: breakdown; margin-bottom: 0; min-width: 0; }
+      .panel-table { margin-top: 16px; margin-bottom: 0; }
+      @media (max-width: 760px) {
+        .layout-top {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: auto auto auto;
+          grid-template-areas:
+            "input"
+            "result"
+            "breakdown";
+        }
+      }
+
+      /* ===== 見出し（固定ヘッダー） ===== */
+      .page-head {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        margin: 0 -16px 20px;
+        padding: 14px 16px 12px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        background: var(--bg);
+        border-bottom: 1px solid var(--line);
+        box-shadow: 0 8px 14px -12px rgba(0, 0, 0, 0.35);
+      }
+      .clear-btn {
+        min-height: 40px;
+        padding: 7px 16px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        line-height: 1.4;
+        background: var(--surface);
+        color: var(--ink);
+        border: 2px solid var(--line);
+        border-radius: 10px;
+        white-space: nowrap;
+        margin-left: auto;
+      }
+      .clear-btn:hover { border-color: var(--gold); }
+      .clear-btn:active { background: var(--surface-2); }
+      .page-head h1 {
+        font-family: "Shippori Mincho B1", "Hiragino Mincho ProN", serif;
+        font-size: 1.75rem;
+        font-weight: 800;
+        margin: 0 0 4px;
+        letter-spacing: 0.02em;
+      }
+      .page-head h1 .tile-char {
+        display: inline-block;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-bottom: 3px solid var(--gold);
+        border-radius: 6px;
+        padding: 0 8px;
+        margin-right: 10px;
+        color: var(--accent);
+        font-size: 1.45rem;
+        vertical-align: 2px;
+      }
+      .page-head h1 { margin-bottom: 0; }
+      @media (max-width: 760px) {
+        /* スマホでも PC と同じ sticky 固定にする（スクロールは .wrap の内側だけなので、
+           外側に流されず画面上部に残る）。fixed は使わない：fixed にするとヘッダーの幅が
+           本文の幅より広く計算されることがあり、右端のボタンが見切れてしまうため。
+           ヘッダーは .wrap の内側にあるので、幅は本文と必ず同じになる。
+           max-width: 100% は付けない：付けると負マージンで広げた幅が本文の
+           コンテンツ幅に制限され、右端が左右余白分（32px）短くなって、
+           背景と下の区切り線が尻切れになり、隙間から下のカードが覗いてしまう。
+           狭い画面でもタイトルと「入力Clear」ボタンが両方収まるよう、
+           タイトル側は縮小可能にし、文字と余白も少し詰める */
+        .page-head {
+          flex-wrap: nowrap;
+          gap: 8px;
+          padding: 10px 12px;
+        }
+        .page-head h1 {
+          font-size: 1.35rem;
+          white-space: nowrap;
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+        .page-head h1 .tile-char { font-size: 1.1rem; padding: 0 6px; margin-right: 6px; }
+        .clear-btn {
+          flex: 0 0 auto;
+          min-height: 36px;
+          padding: 6px 10px;
+          font-size: 0.82rem;
+          margin-left: auto;
+        }
+      }
+      @media (max-width: 380px) {
+        /* さらに狭い画面ではタイトルをもう一段小さくして、ボタンと両方収める */
+        .page-head h1 { font-size: 1.18rem; }
+        .page-head h1 .tile-char { font-size: 1rem; padding: 0 5px; margin-right: 5px; }
+        .clear-btn { padding: 6px 8px; font-size: 0.8rem; }
+      }
+
+      /* ===== カード ===== */
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px 16px;
+        margin-bottom: 16px;
+      }
+      .card h2 {
+        font-size: 1rem;
+        font-weight: 900;
+        margin: 0 0 12px;
+      }
+
+      /* ===== 入力グループ ===== */
+      .group { margin-bottom: 18px; }
+      .group:last-child { margin-bottom: 0; }
+      .group-label {
+        display: block;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .group-label .chosen {
+        color: var(--ink);
+        font-size: 0.95rem;
+        margin-left: 6px;
+      }
+
+      .segmented {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .segmented button {
+        min-height: 48px;
+        font-size: 1.05rem;
+        font-weight: 700;
+        background: var(--chip-bg);
+        color: var(--chip-ink);
+        border: 2px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+      }
+      .segmented button[aria-pressed="true"] {
+        background: var(--selected-bg);
+        border-color: var(--selected-bg);
+        color: var(--selected-ink);
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chips button {
+        min-width: 52px;
+        min-height: 44px;
+        font-size: 1rem;
+        font-weight: 700;
+        background: var(--chip-bg);
+        color: var(--chip-ink);
+        border: 2px solid var(--line);
+        border-radius: 10px;
+        padding: 6px 10px;
+      }
+      .chips button small { font-size: 0.72rem; font-weight: 500; }
+      .chips button[aria-pressed="true"] {
+        background: var(--selected-bg);
+        border-color: var(--selected-bg);
+        color: var(--selected-ink);
+      }
+      .chips button:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      /* ===== 20符・25符ボタンのツールチップ（1翻を選べない理由） ===== */
+      .chip-tip { position: relative; display: inline-flex; }
+      .tip-bubble {
+        position: absolute;
+        bottom: calc(100% + 9px);
+        left: -4px;
+        z-index: 30;
+        width: max-content;
+        max-width: 230px;
+        background: var(--ink);
+        color: var(--bg);
+        font-size: 0.78rem;
+        font-weight: 500;
+        line-height: 1.5;
+        text-align: left;
+        padding: 8px 10px;
+        border-radius: 8px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(4px);
+        transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+        pointer-events: none;
+      }
+      .tip-bubble::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 22px;
+        border: 6px solid transparent;
+        border-top-color: var(--ink);
+        border-bottom: none;
+      }
+      /* 表示はホバーしている間だけ：フォーカスやクリックでは出さない
+         （クリック後に残ると、もう一方のツールチップと同時に出てしまうため） */
+      .chip-tip:hover .tip-bubble {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+      /* ===== ロンボタンのツールチップ（20符は選べない旨） =====
+         segmented のグリッド1マスに収まるよう、ラッパーはブロック表示にして
+         中のボタンをラッパーいっぱいに広げる。表示条件は符チップと同じくホバーの間だけ */
+      .seg-tip { display: block; }
+      .seg-tip button { width: 100%; height: 100%; }
+      .seg-tip .tip-bubble { left: 0; }
+      .seg-tip:hover .tip-bubble {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .tip-bubble { transition: none; }
+      }
+      button:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      /* ===== 結果パネル（雀卓グリーン） ===== */
+      .result {
+        position: relative;
+        background: linear-gradient(160deg, var(--felt) 0%, var(--felt-deep) 100%);
+        color: var(--felt-ink);
+        border-radius: 14px;
+        /* 上：左上の「子・ロン」分、下：右下の役名（満貫など）分を常に確保し、
+           役名の有無でカードの大きさが変わらないようにする */
+        padding: 40px 18px 76px;
+        margin-bottom: 16px;
+        text-align: center;
+      }
+      /* 左上：親子・ロン/ツモ（従来の条件ピルと同じフォント・サイズ） */
+      .result .who-how {
+        position: absolute;
+        top: 14px;
+        left: 16px;
+        font-size: 0.82rem;
+        line-height: 1.6;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      /* 中央：符・翻 */
+      .result .fu-han {
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        font-variant-numeric: tabular-nums;
+      }
+      /* 下段の行：左にツモの内訳、右に満貫以上の役名を並べる。
+         両方あるときに横幅が足りなければ、内訳の方が折り返してぶつからないようにする */
+      .result .result-bottom {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 16px;
+      }
+      /* 右下：満貫以上の役名（金色・明朝体） */
+      .result .hand-name {
+        font-family: "Shippori Mincho B1", "Hiragino Mincho ProN", serif;
+        font-size: 3rem;
+        font-weight: 800;
+        line-height: 1.15;
+        letter-spacing: 0.06em;
+        color: #f2c94c;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 22px rgba(242, 201, 76, 0.35);
+        white-space: nowrap;
+      }
+      /* 満貫以上のときは、左下のツモ内訳だけを共通の小さめサイズにして
+         一行に収まるようにする（右下の役名のサイズは変えない）。
+         満貫・跳満・倍満・三倍満・数え役満で同じサイズにそろえる */
+      .result.limit-hand .tsumo-detail {
+        font-size: 1.45rem;
+      }
+      .result .score-main {
+        font-size: 3rem;
+        font-weight: 900;
+        line-height: 1.15;
+        margin: 2px 0 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .result .score-main .unit { font-size: 1.3rem; font-weight: 700; margin-left: 4px; }
+      /* 左下：ツモのときの内訳（子と親がそれぞれいくら払うか）。
+         中央の合計点数より少し小さめのフォントで表示する */
+      .result .tsumo-detail {
+        font-size: 1.9rem;
+        font-weight: 800;
+        line-height: 1.15;
+        font-variant-numeric: tabular-nums;
+        text-align: left;
+      }
+      /* 「子 ○点」「親 ○点」のかたまりの中では改行させない（折り返すなら境目で） */
+      .result .tsumo-detail .pay { white-space: nowrap; }
+      @media (max-width: 760px) {
+        /* 狭い画面では右下の役名と並ぶよう、内訳をさらに小さくする */
+        .result .tsumo-detail { font-size: 1.25rem; }
+        .result.limit-hand .tsumo-detail { font-size: 1.05rem; }
+      }
+
+      /* ===== 内訳 ===== */
+      .breakdown {
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-size: 0.9rem;
+      }
+      .breakdown dl { margin: 0; }
+      .breakdown .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 5px 0;
+        border-bottom: 1px dashed var(--line);
+      }
+      .breakdown .row:last-child { border-bottom: none; }
+      .breakdown dt { color: var(--muted); flex-shrink: 0; }
+      .breakdown dd { margin: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+
+      .formula {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.84rem;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-top: 10px;
+        overflow-wrap: anywhere;
+        /* 式が1行でも2行（子ツモ）でも高さが変わらないよう、常に2行分の高さを確保する */
+        min-height: calc(1.6em * 2 + 18px);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      @media (max-width: 760px) {
+        /* 狭い画面では式が折り返して行数が増えるため、確保する行数も増やす */
+        .formula { min-height: calc(1.6em * 4 + 18px); }
+      }
+
+      /* ===== 点数早見表（4）：中央＝符、左＝親（4翻→1翻）、右＝子（1翻→4翻）／ 満貫以上の早見表（5）も同じ形 ===== */
+      .panel-fulltable { margin-top: 0; margin-bottom: 0; }
+      .table-note { font-size: 0.82rem; color: var(--muted); margin: 0 0 12px; }
+      /* 列幅は colgroup で固定する：親の4列と子の4列を同じ幅にそろえ、符の列だけ少し細くする。
+         table-layout: fixed にすると、中身の文字数に引きずられず colgroup の幅どおりになる */
+      .full-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      .full-table th, .full-table td {
+        border: 1px solid var(--line);
+        padding: 7px 4px;
+        text-align: center;
+        vertical-align: middle;
+      }
+      .full-table thead th.side-head {
+        background: var(--felt);
+        color: #ffffff;
+        font-size: 1rem;
+        font-weight: 900;
+        padding: 8px 4px;
+      }
+      .full-table thead th.han-head {
+        background: var(--surface-2);
+        color: var(--ink);
+        font-size: 0.82rem;
+        font-weight: 700;
+      }
+      .full-table thead th.fu-head {
+        background: var(--felt-deep);
+        color: #ffffff;
+        font-size: 0.95rem;
+        font-weight: 900;
+      }
+      .full-table .fu-cell {
+        background: var(--felt-deep);
+        color: #ffffff;
+        font-weight: 900;
+        font-size: 0.95rem;
+        white-space: nowrap;
+      }
+      .full-table .fu-cell small {
+        display: block;
+        font-size: 0.62rem;
+        font-weight: 500;
+        margin-top: 1px;
+      }
+      /* カード5：役名（満貫など）を少し大きく表示する */
+      #panel-table5 .full-table .fu-cell {
+        font-size: 1.2rem;
+      }
+      .full-table .ron {
+        display: block;
+        font-weight: 700;
+        font-size: 1.08rem;
+        color: var(--table-num);
+        line-height: 1.35;
+        font-variant-numeric: tabular-nums;
+      }
+      .full-table .tsumo {
+        display: block;
+        font-size: 0.84rem;
+        color: var(--table-num-sub);
+        line-height: 1.35;
+        font-variant-numeric: tabular-nums;
+      }
+      .full-table .none { color: var(--table-num-sub); }
+      /* ===== 早見表のハイライト（1の入力に該当するセル） ===== */
+      .full-table td.is-highlight,
+      .full-table th.is-highlight {
+        background: var(--highlight-bg);
+        color: var(--highlight-ink);
+        box-shadow: inset 0 0 0 3px var(--highlight-ring);
+      }
+      .full-table td.is-highlight .ron,
+      .full-table th.is-highlight .ron { color: #5c4f10; font-weight: 500; }
+      .full-table td.is-highlight .tsumo { color: #5c4f10; font-weight: 500; }
+      .full-table td.is-highlight .none { color: var(--highlight-ink); }
+      /* ハイライト内では、あがり方に該当する数字だけを黒の太字にする。
+         該当しない方（ロン選択時のツモ、ツモ選択時のロン）は太字にせず色も抑える */
+      .full-table td.is-highlight.focus-ron .ron { font-weight: 900; color: #000000; }
+      .full-table td.is-highlight.focus-ron .tsumo { font-weight: 500; color: #6b5d1f; }
+      .full-table td.is-highlight.focus-tsumo .tsumo { font-weight: 900; color: #000000; }
+      .full-table td.is-highlight.focus-tsumo .ron { font-weight: 500; color: #6b5d1f; }
+      /* 表5のスマホ版はロンとツモが別セルで、中身は .ron だけ。
+         その場合はハイライトされたセル自体が該当する支払いなので黒の太字にする */
+      .full-table td.is-highlight.focus-tsumo .ron:only-child,
+      .full-table td.is-highlight.focus-ron .ron:only-child { font-weight: 900; color: #000000; }
+      /* 行・列の見出しは弱めのハイライト */
+      .full-table th.is-highlight-soft {
+        background: var(--highlight-soft);
+        color: var(--ink);
+        box-shadow: inset 0 0 0 2px var(--highlight-ring);
+      }
+      /* 見出し行のセルは han-head / side-head 側の背景指定が is-highlight より
+         詳細度で勝ってしまうため、見出し専用の規則でハイライトを優先させる
+         （翻の見出しも、符セルと同じ黄色で色付くようにする） */
+      .full-table thead th.han-head.is-highlight {
+        background: var(--highlight-bg);
+        color: var(--highlight-ink);
+      }
+      .full-table thead th.side-head.is-highlight-soft {
+        background: var(--highlight-soft);
+        color: var(--ink);
+      }
+      .split-head.is-highlight-soft {
+        background: var(--highlight-ring);
+        color: #ffffff;
+      }
+      /* ===== 早見表のガイド線（該当セルまでの行と列を線で囲む） =====
+         列の線は見出しから該当行まで、行の線は符（役）の列から該当列まで引く。
+         線は各セルの内側に描く（inset shadow）ので、セルが並ぶと1本につながる。
+         このルール群は is-highlight より後ろに置き、重なるセルの影を上書きする。 */
+      /* 列の途中：左右だけ線を引く */
+      .full-table td.guide-v,
+      .full-table th.guide-v {
+        box-shadow: inset 3px 0 0 var(--guide-line), inset -3px 0 0 var(--guide-line);
+      }
+      /* 列の始まり（翻の見出し）：左右と上に線、下はハイライトの輪郭色で受ける */
+      .full-table td.guide-vt,
+      .full-table th.guide-vt {
+        box-shadow: inset 3px 0 0 var(--guide-line), inset -3px 0 0 var(--guide-line),
+          inset 0 3px 0 var(--guide-line), inset 0 -3px 0 var(--highlight-ring);
+      }
+      /* 行の途中：上下だけ線を引く */
+      .full-table td.guide-h,
+      .full-table th.guide-h {
+        box-shadow: inset 0 3px 0 var(--guide-line), inset 0 -3px 0 var(--guide-line);
+      }
+      /* 行の始まりが左端（子の側・子表・役の列）：左にも線、右はハイライトの輪郭色で受ける */
+      .full-table td.guide-hl,
+      .full-table th.guide-hl {
+        box-shadow: inset 0 3px 0 var(--guide-line), inset 0 -3px 0 var(--guide-line),
+          inset 3px 0 0 var(--guide-line), inset -3px 0 0 var(--highlight-ring);
+      }
+      /* 行の始まりが右端（親の側）：右にも線、左はハイライトの輪郭色で受ける */
+      .full-table td.guide-hr,
+      .full-table th.guide-hr {
+        box-shadow: inset 0 3px 0 var(--guide-line), inset 0 -3px 0 var(--guide-line),
+          inset -3px 0 0 var(--guide-line), inset 3px 0 0 var(--highlight-ring);
+      }
+      /* 行と列の交点（該当セル）：四方を線で囲む */
+      .full-table td.guide-cross,
+      .full-table th.guide-cross {
+        box-shadow: inset 0 0 0 3px var(--guide-line);
+      }
+      /* スマホでは親・子の2表に分けて表示する（横スクロール回避） */
+      .score-split { display: none; }
+      .split-head {
+        margin: 0;
+        background: var(--felt);
+        color: #ffffff;
+        text-align: center;
+        font-size: 0.95rem;
+        font-weight: 900;
+        padding: 6px;
+        border-radius: 8px 8px 0 0;
+      }
+      .split-block + .split-block { margin-top: 16px; }
+      @media (max-width: 760px) {
+        .score-wide { display: none; }
+        .score-split { display: block; }
+        .full-table .ron { font-size: 1rem; }
+        /* スマホではツモの数字（例：(1,000/2,000)）がセルからはみ出すため、
+           ツモだけ少し小さくし、セルの左右の余白も詰めて1行に収める */
+        .full-table th, .full-table td { padding-left: 2px; padding-right: 2px; }
+        .full-table .tsumo { font-size: 0.62rem; }
+      }
+
+      /* ===== スマホ専用（幅760px以下）：案A＝カード1を詰めてカード1＋2をファーストビューに収める =====
+         PC（761px以上）には一切適用しない。左カード1と右カード2＋3の高さが
+         そろったPCのバランスはそのままに、縦並びになるスマホだけを対象にする。
+         計算・入力制御・ツールチップ・ハイライトの仕組みは変えない（見た目だけ）。 */
+      @media (max-width: 760px) {
+        .layout-top { gap: 12px; margin-bottom: 12px; }
+        /* カード1：上の2グループ（あがった人／あがり方）を横に並べ、
+           親・子・ロン・ツモの4ボタンを1行にまとめる。下の符・翻は全幅 */
+        .panel-input {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          column-gap: 8px;
+          row-gap: 10px;
+          padding: 12px 10px;
+        }
+        .panel-input .group { margin-bottom: 0; min-width: 0; }
+        .panel-input .group:nth-child(1),
+        .panel-input .group:nth-child(2) { grid-column: span 1; }
+        .panel-input .group:nth-child(3),
+        .panel-input .group:nth-child(4) { grid-column: 1 / -1; }
+        .panel-input .group-label { margin-bottom: 5px; font-size: 0.78rem; }
+        .panel-input .group-label .chosen { font-size: 0.88rem; margin-left: 4px; }
+        /* 親・子／ロン・ツモ：高さと余白を絞る */
+        .panel-input .segmented { gap: 6px; }
+        .panel-input .segmented button {
+          min-height: 36px;
+          font-size: 0.92rem;
+          padding: 4px 2px;
+          border-radius: 8px;
+          white-space: nowrap;
+        }
+        /* 符・翻チップ：高さと余白を絞り、列数を固定する（符6列・翻7列） */
+        .panel-input .chips { gap: 6px; }
+        .panel-input #fu-chips {
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+        }
+        .panel-input #han-chips {
+          display: grid;
+          grid-template-columns: repeat(7, minmax(0, 1fr));
+        }
+        .panel-input .chips button {
+          min-width: 0;
+          width: 100%;
+          min-height: 34px;
+          font-size: 0.9rem;
+          padding: 4px 0;
+          border-radius: 8px;
+        }
+        /* ツールチップ付きチップ（20符・25符）はグリッドのマスいっぱいに広げる */
+        .panel-input .chip-tip { display: flex; }
+        .panel-input .chip-tip button { flex: 1 1 auto; }
+      }
+
+      footer {
+        color: var(--muted);
+        font-size: 0.8rem;
+        text-align: center;
+        margin-top: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+
+      <header class="page-head">
+        <h1><span class="tile-char" aria-hidden="true">中</span>麻雀 点数計算</h1>
+        <button type="button" class="clear-btn" id="btn-clear">入力Clear</button>
+      </header>
+
+      <!-- ============ 上段：1左 / 2右上 / 3右下 ============ -->
+      <div class="layout-top">
+      <!-- ============ 1：入力（左） ============ -->
+      <section class="card panel-input" aria-label="条件の入力">
+        <div class="group">
+          <span class="group-label" id="label-who">あがった人</span>
+          <div class="segmented" role="group" aria-labelledby="label-who">
+            <button type="button" id="btn-dealer" aria-pressed="false">親（東）</button>
+            <button type="button" id="btn-child" aria-pressed="false">子</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <span class="group-label" id="label-how">あがり方</span>
+          <div class="segmented" role="group" aria-labelledby="label-how">
+            <span class="chip-tip seg-tip">
+              <button type="button" id="btn-ron" aria-pressed="false" aria-describedby="tip-ron">ロン</button>
+              <span class="tip-bubble" id="tip-ron" role="tooltip">20符は平和ツモのみのため、ロンでは20符を選べません</span>
+            </span>
+            <button type="button" id="btn-tsumo" aria-pressed="false">ツモ</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <span class="group-label" id="label-fu">符<span class="chosen" id="fu-chosen"></span></span>
+          <div class="chips" id="fu-chips" role="group" aria-labelledby="label-fu"></div>
+        </div>
+
+        <div class="group">
+          <span class="group-label" id="label-han">翻数<span class="chosen" id="han-chosen"></span></span>
+          <div class="chips" id="han-chips" role="group" aria-labelledby="label-han"></div>
+        </div>
+      </section>
+
+      <!-- ============ 2：結果（右上） ============ -->
+      <section class="result panel-result" aria-live="polite" aria-label="計算結果">
+        <div class="who-how" id="who-how"></div>
+        <div class="result-center">
+          <div class="fu-han" id="fu-han"></div>
+          <div class="score-main" id="score-main"></div>
+        </div>
+        <div class="result-bottom">
+          <div class="tsumo-detail" id="tsumo-detail"></div>
+          <div class="hand-name" id="hand-name"></div>
+        </div>
+      </section>
+
+      <!-- ============ 3：内訳（右下） ============ -->
+      <section class="card panel-breakdown" aria-label="計算の内訳">
+        <div class="breakdown">
+          <dl>
+            <div class="row"><dt>基本点 ＝ 符 × 2^(翻数＋2)</dt><dd id="bd-base"></dd></div>
+            <div class="row"><dt>支払いの元になる倍率</dt><dd id="bd-mult"></dd></div>
+            <div class="row"><dt>100点未満の切り上げ</dt><dd id="bd-round"></dd></div>
+          </dl>
+          <div class="formula" id="bd-formula"></div>
+        </div>
+      </section>
+      </div>
+
+      <!-- ============ 4：点数早見表（下段・全幅） ============ -->
+      <section class="card panel-fulltable" id="panel-table4" aria-label="点数早見表">
+        <h2>点数早見表（1〜4翻）</h2>
+        <p class="table-note">大きい数字はロンの点数、（ ）内はツモの支払いです。親のツモはオール、子のツモは（子／親）の順です。</p>
+
+        <!-- 広い画面：元画像と同じ9列（親 4翻→1翻 ／ 符 ／ 子 1翻→4翻） -->
+        <div class="score-wide">
+          <table class="full-table">
+            <!-- 親4列・子4列はすべて同じ幅（11.5%）、中央の符の列だけ少し細く（8%） -->
+            <colgroup>
+              <col style="width:11.5%" /><col style="width:11.5%" /><col style="width:11.5%" /><col style="width:11.5%" />
+              <col style="width:8%" />
+              <col style="width:11.5%" /><col style="width:11.5%" /><col style="width:11.5%" /><col style="width:11.5%" />
+            </colgroup>
+            <thead>
+              <tr><th colspan="4" class="side-head" scope="colgroup">親</th><th rowspan="2" class="fu-head" scope="col">符</th><th colspan="4" class="side-head" scope="colgroup">子</th></tr>
+              <tr><th class="han-head" scope="col">4翻</th><th class="han-head" scope="col">3翻</th><th class="han-head" scope="col">2翻</th><th class="han-head" scope="col">1翻</th><th class="han-head" scope="col">1翻</th><th class="han-head" scope="col">2翻</th><th class="han-head" scope="col">3翻</th><th class="han-head" scope="col">4翻</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="ron">7,700</span><span class="tsumo">(2,600)</span></td>
+                <td><span class="ron">3,900</span><span class="tsumo">(1,300)</span></td>
+                <td><span class="ron">2,000</span><span class="tsumo">(700)</span></td>
+                <td><span class="none">—</span></td>
+                <th class="fu-cell" scope="row">20符<small>（平和ツモ）</small></th>
+                <td><span class="none">—</span></td>
+                <td><span class="ron">1,300</span><span class="tsumo">(400/700)</span></td>
+                <td><span class="ron">2,600</span><span class="tsumo">(700/1,300)</span></td>
+                <td><span class="ron">5,200</span><span class="tsumo">(1,300/2,600)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">9,600</span><span class="tsumo">(3,200)</span></td>
+                <td><span class="ron">4,800</span><span class="tsumo">(1,600)</span></td>
+                <td><span class="ron">2,400</span><span class="tsumo">(800)</span></td>
+                <td><span class="none">—</span></td>
+                <th class="fu-cell" scope="row">25符<small>（七対子）</small></th>
+                <td><span class="none">—</span></td>
+                <td><span class="ron">1,600</span><span class="tsumo">(400/800)</span></td>
+                <td><span class="ron">3,200</span><span class="tsumo">(800/1,600)</span></td>
+                <td><span class="ron">6,400</span><span class="tsumo">(1,600/3,200)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">11,600</span><span class="tsumo">(3,900)</span></td>
+                <td><span class="ron">5,800</span><span class="tsumo">(2,000)</span></td>
+                <td><span class="ron">2,900</span><span class="tsumo">(1,000)</span></td>
+                <td><span class="ron">1,500</span><span class="tsumo">(500)</span></td>
+                <th class="fu-cell" scope="row">30符</th>
+                <td><span class="ron">1,000</span><span class="tsumo">(300/500)</span></td>
+                <td><span class="ron">2,000</span><span class="tsumo">(500/1,000)</span></td>
+                <td><span class="ron">3,900</span><span class="tsumo">(1,000/2,000)</span></td>
+                <td><span class="ron">7,700</span><span class="tsumo">(2,000/3,900)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">7,700</span><span class="tsumo">(2,600)</span></td>
+                <td><span class="ron">3,900</span><span class="tsumo">(1,300)</span></td>
+                <td><span class="ron">2,000</span><span class="tsumo">(700)</span></td>
+                <th class="fu-cell" scope="row">40符</th>
+                <td><span class="ron">1,300</span><span class="tsumo">(400/700)</span></td>
+                <td><span class="ron">2,600</span><span class="tsumo">(700/1,300)</span></td>
+                <td><span class="ron">5,200</span><span class="tsumo">(1,300/2,600)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">9,600</span><span class="tsumo">(3,200)</span></td>
+                <td><span class="ron">4,800</span><span class="tsumo">(1,600)</span></td>
+                <td><span class="ron">2,400</span><span class="tsumo">(800)</span></td>
+                <th class="fu-cell" scope="row">50符</th>
+                <td><span class="ron">1,600</span><span class="tsumo">(400/800)</span></td>
+                <td><span class="ron">3,200</span><span class="tsumo">(800/1,600)</span></td>
+                <td><span class="ron">6,400</span><span class="tsumo">(1,600/3,200)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">11,600</span><span class="tsumo">(3,900)</span></td>
+                <td><span class="ron">5,800</span><span class="tsumo">(2,000)</span></td>
+                <td><span class="ron">2,900</span><span class="tsumo">(1,000)</span></td>
+                <th class="fu-cell" scope="row">60符</th>
+                <td><span class="ron">2,000</span><span class="tsumo">(500/1,000)</span></td>
+                <td><span class="ron">3,900</span><span class="tsumo">(1,000/2,000)</span></td>
+                <td><span class="ron">7,700</span><span class="tsumo">(2,000/3,900)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">6,800</span><span class="tsumo">(2,300)</span></td>
+                <td><span class="ron">3,400</span><span class="tsumo">(1,200)</span></td>
+                <th class="fu-cell" scope="row">70符</th>
+                <td><span class="ron">2,300</span><span class="tsumo">(600/1,200)</span></td>
+                <td><span class="ron">4,500</span><span class="tsumo">(1,200/2,300)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">7,700</span><span class="tsumo">(2,600)</span></td>
+                <td><span class="ron">3,900</span><span class="tsumo">(1,300)</span></td>
+                <th class="fu-cell" scope="row">80符</th>
+                <td><span class="ron">2,600</span><span class="tsumo">(700/1,300)</span></td>
+                <td><span class="ron">5,200</span><span class="tsumo">(1,300/2,600)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">8,700</span><span class="tsumo">(2,900)</span></td>
+                <td><span class="ron">4,400</span><span class="tsumo">(1,500)</span></td>
+                <th class="fu-cell" scope="row">90符</th>
+                <td><span class="ron">2,900</span><span class="tsumo">(800/1,500)</span></td>
+                <td><span class="ron">5,800</span><span class="tsumo">(1,500/2,900)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">9,600</span><span class="tsumo">(3,200)</span></td>
+                <td><span class="ron">4,800</span><span class="tsumo">(1,600)</span></td>
+                <th class="fu-cell" scope="row">100符</th>
+                <td><span class="ron">3,200</span><span class="tsumo">(800/1,600)</span></td>
+                <td><span class="ron">6,400</span><span class="tsumo">(1,600/3,200)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td>
+                <td><span class="ron">10,600</span><span class="tsumo">(3,600)</span></td>
+                <td><span class="ron">5,300</span><span class="tsumo">(1,800)</span></td>
+                <th class="fu-cell" scope="row">110符</th>
+                <td><span class="ron">3,600</span><span class="tsumo">(900/1,800)</span></td>
+                <td><span class="ron">7,100</span><span class="tsumo">(1,800/3,600)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+                <td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 狭い画面：親・子を分けた5列の表（中身は9列版と同じ） -->
+        <div class="score-split">
+          <div class="split-block">
+            <h3 class="split-head">親</h3>
+            <table class="full-table">
+              <!-- 符の列は少し細く（18%）、1〜4翻の4列は同じ幅（20.5%）にそろえる -->
+              <colgroup>
+                <col style="width:18%" /><col style="width:20.5%" /><col style="width:20.5%" /><col style="width:20.5%" /><col style="width:20.5%" />
+              </colgroup>
+              <thead>
+                <tr><th class="fu-head" scope="col">符</th><th class="han-head" scope="col">1翻</th><th class="han-head" scope="col">2翻</th><th class="han-head" scope="col">3翻</th><th class="han-head" scope="col">4翻</th></tr>
+              </thead>
+              <tbody>
+                <tr><th class="fu-cell" scope="row">20符<small>（平和ツモ）</small></th><td><span class="none">—</span></td><td><span class="ron">2,000</span><span class="tsumo">(700)</span></td><td><span class="ron">3,900</span><span class="tsumo">(1,300)</span></td><td><span class="ron">7,700</span><span class="tsumo">(2,600)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">25符<small>（七対子）</small></th><td><span class="none">—</span></td><td><span class="ron">2,400</span><span class="tsumo">(800)</span></td><td><span class="ron">4,800</span><span class="tsumo">(1,600)</span></td><td><span class="ron">9,600</span><span class="tsumo">(3,200)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">30符</th><td><span class="ron">1,500</span><span class="tsumo">(500)</span></td><td><span class="ron">2,900</span><span class="tsumo">(1,000)</span></td><td><span class="ron">5,800</span><span class="tsumo">(2,000)</span></td><td><span class="ron">11,600</span><span class="tsumo">(3,900)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">40符</th><td><span class="ron">2,000</span><span class="tsumo">(700)</span></td><td><span class="ron">3,900</span><span class="tsumo">(1,300)</span></td><td><span class="ron">7,700</span><span class="tsumo">(2,600)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">50符</th><td><span class="ron">2,400</span><span class="tsumo">(800)</span></td><td><span class="ron">4,800</span><span class="tsumo">(1,600)</span></td><td><span class="ron">9,600</span><span class="tsumo">(3,200)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">60符</th><td><span class="ron">2,900</span><span class="tsumo">(1,000)</span></td><td><span class="ron">5,800</span><span class="tsumo">(2,000)</span></td><td><span class="ron">11,600</span><span class="tsumo">(3,900)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">70符</th><td><span class="ron">3,400</span><span class="tsumo">(1,200)</span></td><td><span class="ron">6,800</span><span class="tsumo">(2,300)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">80符</th><td><span class="ron">3,900</span><span class="tsumo">(1,300)</span></td><td><span class="ron">7,700</span><span class="tsumo">(2,600)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">90符</th><td><span class="ron">4,400</span><span class="tsumo">(1,500)</span></td><td><span class="ron">8,700</span><span class="tsumo">(2,900)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">100符</th><td><span class="ron">4,800</span><span class="tsumo">(1,600)</span></td><td><span class="ron">9,600</span><span class="tsumo">(3,200)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">110符</th><td><span class="ron">5,300</span><span class="tsumo">(1,800)</span></td><td><span class="ron">10,600</span><span class="tsumo">(3,600)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td><td><span class="ron">満貫</span><span class="tsumo">(4,000)</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="split-block">
+            <h3 class="split-head">子</h3>
+            <table class="full-table">
+              <!-- 符の列は少し細く（18%）、1〜4翻の4列は同じ幅（20.5%）にそろえる -->
+              <colgroup>
+                <col style="width:18%" /><col style="width:20.5%" /><col style="width:20.5%" /><col style="width:20.5%" /><col style="width:20.5%" />
+              </colgroup>
+              <thead>
+                <tr><th class="fu-head" scope="col">符</th><th class="han-head" scope="col">1翻</th><th class="han-head" scope="col">2翻</th><th class="han-head" scope="col">3翻</th><th class="han-head" scope="col">4翻</th></tr>
+              </thead>
+              <tbody>
+                <tr><th class="fu-cell" scope="row">20符<small>（平和ツモ）</small></th><td><span class="none">—</span></td><td><span class="ron">1,300</span><span class="tsumo">(400/700)</span></td><td><span class="ron">2,600</span><span class="tsumo">(700/1,300)</span></td><td><span class="ron">5,200</span><span class="tsumo">(1,300/2,600)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">25符<small>（七対子）</small></th><td><span class="none">—</span></td><td><span class="ron">1,600</span><span class="tsumo">(400/800)</span></td><td><span class="ron">3,200</span><span class="tsumo">(800/1,600)</span></td><td><span class="ron">6,400</span><span class="tsumo">(1,600/3,200)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">30符</th><td><span class="ron">1,000</span><span class="tsumo">(300/500)</span></td><td><span class="ron">2,000</span><span class="tsumo">(500/1,000)</span></td><td><span class="ron">3,900</span><span class="tsumo">(1,000/2,000)</span></td><td><span class="ron">7,700</span><span class="tsumo">(2,000/3,900)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">40符</th><td><span class="ron">1,300</span><span class="tsumo">(400/700)</span></td><td><span class="ron">2,600</span><span class="tsumo">(700/1,300)</span></td><td><span class="ron">5,200</span><span class="tsumo">(1,300/2,600)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">50符</th><td><span class="ron">1,600</span><span class="tsumo">(400/800)</span></td><td><span class="ron">3,200</span><span class="tsumo">(800/1,600)</span></td><td><span class="ron">6,400</span><span class="tsumo">(1,600/3,200)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">60符</th><td><span class="ron">2,000</span><span class="tsumo">(500/1,000)</span></td><td><span class="ron">3,900</span><span class="tsumo">(1,000/2,000)</span></td><td><span class="ron">7,700</span><span class="tsumo">(2,000/3,900)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">70符</th><td><span class="ron">2,300</span><span class="tsumo">(600/1,200)</span></td><td><span class="ron">4,500</span><span class="tsumo">(1,200/2,300)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">80符</th><td><span class="ron">2,600</span><span class="tsumo">(700/1,300)</span></td><td><span class="ron">5,200</span><span class="tsumo">(1,300/2,600)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">90符</th><td><span class="ron">2,900</span><span class="tsumo">(800/1,500)</span></td><td><span class="ron">5,800</span><span class="tsumo">(1,500/2,900)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">100符</th><td><span class="ron">3,200</span><span class="tsumo">(800/1,600)</span></td><td><span class="ron">6,400</span><span class="tsumo">(1,600/3,200)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td></tr>
+                <tr><th class="fu-cell" scope="row">110符</th><td><span class="ron">3,600</span><span class="tsumo">(900/1,800)</span></td><td><span class="ron">7,100</span><span class="tsumo">(1,800/3,600)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td><td><span class="ron">満貫</span><span class="tsumo">(2,000/4,000)</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 5：満貫以上の早見表（下段・全幅） ============ -->
+      <section class="card panel-table" id="panel-table5" aria-label="満貫以上の早見表">
+        <h2>満貫以上の早見表</h2>
+        <p class="table-note">大きい数字はロンの点数、（ ）内はツモの支払いです。親のツモはオール、子のツモは（子／親）の順です。</p>
+
+        <!-- 広い画面：4と同じ形（左＝親 ／ 中央＝役 ／ 右＝子、各セルにロン＋ツモ） -->
+        <div class="score-wide">
+          <table class="full-table">
+            <!-- 親と子の列は同じ幅（40%ずつ）、中央の役の列だけ少し細く（20%） -->
+            <colgroup>
+              <col style="width:40%" />
+              <col style="width:20%" />
+              <col style="width:40%" />
+            </colgroup>
+            <thead>
+              <tr><th class="side-head" scope="col">親</th><th rowspan="2" class="fu-head" scope="col">役</th><th class="side-head" scope="col">子</th></tr>
+              <tr><th class="han-head" scope="col">ロン（ツモ）</th><th class="han-head" scope="col">ロン（ツモ）</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="ron">12,000</span><span class="tsumo">(4,000)</span></td>
+                <th class="fu-cell" scope="row">満貫</th>
+                <td><span class="ron">8,000</span><span class="tsumo">(2,000/4,000)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">18,000</span><span class="tsumo">(6,000)</span></td>
+                <th class="fu-cell" scope="row">跳満</th>
+                <td><span class="ron">12,000</span><span class="tsumo">(3,000/6,000)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">24,000</span><span class="tsumo">(8,000)</span></td>
+                <th class="fu-cell" scope="row">倍満</th>
+                <td><span class="ron">16,000</span><span class="tsumo">(4,000/8,000)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">36,000</span><span class="tsumo">(12,000)</span></td>
+                <th class="fu-cell" scope="row">三倍満</th>
+                <td><span class="ron">24,000</span><span class="tsumo">(6,000/12,000)</span></td>
+              </tr>
+              <tr>
+                <td><span class="ron">48,000</span><span class="tsumo">(16,000)</span></td>
+                <th class="fu-cell" scope="row">数え役満</th>
+                <td><span class="ron">32,000</span><span class="tsumo">(8,000/16,000)</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 狭い画面：4と同じく親・子を分けた表（中身は広い画面版と同じ） -->
+        <div class="score-split">
+          <div class="split-block">
+            <h3 class="split-head">親</h3>
+            <table class="full-table">
+              <colgroup>
+                <col style="width:34%" /><col style="width:33%" /><col style="width:33%" />
+              </colgroup>
+              <thead>
+                <tr><th class="fu-head" scope="col">役</th><th class="han-head" scope="col">ロン</th><th class="han-head" scope="col">ツモ</th></tr>
+              </thead>
+              <tbody>
+                <tr><th class="fu-cell" scope="row">満貫</th><td><span class="ron">12,000</span></td><td><span class="ron">4,000オール</span></td></tr>
+                <tr><th class="fu-cell" scope="row">跳満</th><td><span class="ron">18,000</span></td><td><span class="ron">6,000オール</span></td></tr>
+                <tr><th class="fu-cell" scope="row">倍満</th><td><span class="ron">24,000</span></td><td><span class="ron">8,000オール</span></td></tr>
+                <tr><th class="fu-cell" scope="row">三倍満</th><td><span class="ron">36,000</span></td><td><span class="ron">12,000オール</span></td></tr>
+                <tr><th class="fu-cell" scope="row">数え役満</th><td><span class="ron">48,000</span></td><td><span class="ron">16,000オール</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="split-block">
+            <h3 class="split-head">子</h3>
+            <table class="full-table">
+              <colgroup>
+                <col style="width:34%" /><col style="width:33%" /><col style="width:33%" />
+              </colgroup>
+              <thead>
+                <tr><th class="fu-head" scope="col">役</th><th class="han-head" scope="col">ロン</th><th class="han-head" scope="col">ツモ</th></tr>
+              </thead>
+              <tbody>
+                <tr><th class="fu-cell" scope="row">満貫</th><td><span class="ron">8,000</span></td><td><span class="ron">2,000/4,000</span></td></tr>
+                <tr><th class="fu-cell" scope="row">跳満</th><td><span class="ron">12,000</span></td><td><span class="ron">3,000/6,000</span></td></tr>
+                <tr><th class="fu-cell" scope="row">倍満</th><td><span class="ron">16,000</span></td><td><span class="ron">4,000/8,000</span></td></tr>
+                <tr><th class="fu-cell" scope="row">三倍満</th><td><span class="ron">24,000</span></td><td><span class="ron">6,000/12,000</span></td></tr>
+                <tr><th class="fu-cell" scope="row">数え役満</th><td><span class="ron">32,000</span></td><td><span class="ron">8,000/16,000</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <footer>© 2026 R.KTN — Built with Muse</footer>
+    </div>
+
+    <script>
+      // ============================================================
+      // 麻雀 点数計算 v0.1
+      // 仕組み: 基本点 = 符 × 2^(翻+2) を求め、上限（満貫など）で
+      // 止めてから、親子・ロン/ツモに応じた倍率をかけて
+      // 100点単位に切り上げる。
+      // ============================================================
+
+      // ---- 選択肢の定義 ----
+      var HAN_LIST = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+      var FU_LIST = [20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110];
+
+      // ---- 現在の入力状態（画面を開いている間だけ保持） ----
+      // 初期状態は「入力Clear」を押した状態と同じく、4項目すべてが
+      // null（未選択）。「入力Clear」を押したときも同じ状態に戻る。
+      // すべてそろうまでは計算・内訳・ハイライトを表示しない。
+      var state = {
+        dealer: null, // 親かどうか（null = 未選択）
+        tsumo: null,  // ツモかどうか（false = ロン、null = 未選択）
+        han: null,    // 翻数（13 = 13翻以上として扱う、null = 未選択）
+        fu: null      // 符（null = 未選択）
+      };
+
+      // ---- 100点単位への切り上げ ----
+      function roundUp100(n) {
+        return Math.ceil(n / 100) * 100;
+      }
+
+      // ---- 基本点と役の名前を求める ----
+      // 戻り値: { base: 基本点, name: "満貫" など（なければ ""）, raw: 切り捨て前の基本点 }
+      function calcBase(han, fu) {
+        if (han >= 13) return { base: 8000, name: "数え役満", raw: 8000 };
+        if (han >= 11) return { base: 6000, name: "三倍満", raw: 6000 };
+        if (han >= 8)  return { base: 4000, name: "倍満", raw: 4000 };
+        if (han >= 6)  return { base: 3000, name: "跳満", raw: 3000 };
+        if (han >= 5)  return { base: 2000, name: "満貫", raw: 2000 };
+
+        var raw = fu * Math.pow(2, han + 2);
+        if (raw >= 2000) return { base: 2000, name: "満貫", raw: raw };
+        return { base: raw, name: "", raw: raw };
+      }
+
+      // ---- 点数を計算する ----
+      // 戻り値: ロン { type:"ron", total }
+      //         親ツモ { type:"tsumoAll", each, total }
+      //         子ツモ { type:"tsumoSplit", fromChild, fromDealer, total }
+      function calcScore(dealer, tsumo, han, fu) {
+        var b = calcBase(han, fu);
+        var result = { baseInfo: b };
+
+        if (!tsumo) {
+          // ロン: 親は基本点の6倍、子は4倍
+          var mult = dealer ? 6 : 4;
+          result.type = "ron";
+          result.mult = mult;
+          result.total = roundUp100(b.base * mult);
+        } else if (dealer) {
+          // 親ツモ: 全員が基本点の2倍ずつ
+          result.type = "tsumoAll";
+          result.mult = 2;
+          result.each = roundUp100(b.base * 2);
+          result.total = result.each * 3;
+        } else {
+          // 子ツモ: 子は基本点の1倍、親は2倍
+          result.type = "tsumoSplit";
+          result.mult = 1;
+          result.fromChild = roundUp100(b.base * 1);
+          result.fromDealer = roundUp100(b.base * 2);
+          result.total = result.fromChild * 2 + result.fromDealer;
+        }
+        return result;
+      }
+
+      // ============================================================
+      // 画面の描画
+      // ============================================================
+      var el = {
+        dealer: document.getElementById("btn-dealer"),
+        child: document.getElementById("btn-child"),
+        ron: document.getElementById("btn-ron"),
+        tsumo: document.getElementById("btn-tsumo"),
+        hanChips: document.getElementById("han-chips"),
+        fuChips: document.getElementById("fu-chips"),
+        hanChosen: document.getElementById("han-chosen"),
+        fuChosen: document.getElementById("fu-chosen"),
+        handName: document.getElementById("hand-name"),
+        scoreMain: document.getElementById("score-main"),
+        tsumoDetail: document.getElementById("tsumo-detail"),
+        whoHow: document.getElementById("who-how"),
+        fuHan: document.getElementById("fu-han"),
+        bdBase: document.getElementById("bd-base"),
+        bdMult: document.getElementById("bd-mult"),
+        bdRound: document.getElementById("bd-round"),
+        bdFormula: document.getElementById("bd-formula"),
+        panel4: document.getElementById("panel-table4"),
+        panel5: document.getElementById("panel-table5"),
+        clear: document.getElementById("btn-clear")
+      };
+
+      // 翻チップを生成
+      HAN_LIST.forEach(function (h) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = h === 13 ? "13+" : String(h);
+        btn.setAttribute("data-han", h);
+        btn.setAttribute("aria-pressed", "false");
+        btn.addEventListener("click", function () {
+          state.han = h;
+          render();
+        });
+        el.hanChips.appendChild(btn);
+      });
+
+      // 符チップを生成
+      // 20符・25符は最低2翻になる符なので、ボタン上をホバーしている間だけ
+      // 「1翻を選べない理由」をツールチップで表示する
+      var FU_TOOLTIPS = {
+        20: "20符は平和ツモ（最低2翻）のため、1翻は選べません",
+        25: "25符は七対子（最低2翻）のため、1翻は選べません"
+      };
+      FU_LIST.forEach(function (f) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = String(f);
+        btn.setAttribute("data-fu", f);
+        btn.setAttribute("aria-pressed", "false");
+        btn.addEventListener("click", function () {
+          state.fu = f;
+          // 1翻を選んだまま20符・25符に変えたら、自動で2翻に寄せる
+          if ((f === 20 || f === 25) && state.han === 1) state.han = 2;
+          render();
+        });
+        var tipText = FU_TOOLTIPS[f];
+        if (tipText) {
+          var wrap = document.createElement("span");
+          wrap.className = "chip-tip";
+          var tip = document.createElement("span");
+          tip.className = "tip-bubble";
+          tip.id = "tip-fu-" + f;
+          tip.setAttribute("role", "tooltip");
+          tip.textContent = tipText;
+          btn.setAttribute("aria-describedby", tip.id);
+          wrap.appendChild(btn);
+          wrap.appendChild(tip);
+          el.fuChips.appendChild(wrap);
+        } else {
+          el.fuChips.appendChild(btn);
+        }
+      });
+
+      // 親子・ロン/ツモのボタン
+      el.dealer.addEventListener("click", function () { state.dealer = true; render(); });
+      el.child.addEventListener("click", function () { state.dealer = false; render(); });
+      el.ron.addEventListener("click", function () {
+        state.tsumo = false;
+        // 20符は平和ツモのみのため、20符を選んだままロンに切り替えたら自動で30符に寄せる
+        // （30符以外が正しい場合は、利用者に自分で選び直してもらう）
+        if (state.fu === 20) state.fu = 30;
+        render();
+      });
+      el.tsumo.addEventListener("click", function () { state.tsumo = true; render(); });
+
+      // 「入力Clear」: 親・子、ロン・ツモ、符、翻の選択をすべて解除し、
+      // ページのトップまでスクロールして戻る
+      if (el.clear) {
+        el.clear.addEventListener("click", function () {
+          state.dealer = null;
+          state.tsumo = null;
+          state.han = null;
+          state.fu = null;
+          render();
+          // スクロールは内側の .wrap だけにある（body は固定）ので、.wrap をトップに戻す。
+          // 外側がスクロールする表示でも戻るよう、window 側も合わせて戻す
+          var behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+          var wrap = document.querySelector(".wrap");
+          if (wrap) wrap.scrollTo({ top: 0, behavior: behavior });
+          window.scrollTo({ top: 0, behavior: behavior });
+        });
+      }
+
+      function fmt(n) {
+        return n.toLocaleString("ja-JP");
+      }
+
+      // ============================================================
+      // 早見表（4・5）のハイライト
+      // 1で選んだ「親/子・符・翻（と満貫以上の役）」に該当するセルを光らせる。
+      // 表の構造から位置を逆引きする:
+      //   表4（広い画面）: 行 = 符の順番、列 = 親は左に4翻→1翻 / 子は右に1翻→4翻
+      //   表4（狭い画面）: 親と子の表に分かれ、列 = 1翻→4翻
+      //   表5: 行 = 満貫・跳満・倍満・三倍満・数え役満 の順番
+      // ============================================================
+      function clearTableHighlights() {
+        var marked = document.querySelectorAll(
+          ".full-table .is-highlight, .full-table .is-highlight-soft, .split-head.is-highlight-soft, " +
+          ".full-table .guide-v, .full-table .guide-vt, .full-table .guide-h, " +
+          ".full-table .guide-hl, .full-table .guide-hr, .full-table .guide-cross"
+        );
+        marked.forEach(function (node) {
+          node.classList.remove(
+            "is-highlight", "is-highlight-soft", "focus-ron", "focus-tsumo",
+            "guide-v", "guide-vt", "guide-h", "guide-hl", "guide-hr", "guide-cross"
+          );
+        });
+      }
+
+      // ガイド線：見出しから該当行まで、該当列のセルに左右の線を引く
+      // （該当行より下のセルには引かない）
+      function guideColumn(tbody, colIdx, targetRowIdx) {
+        if (!tbody) return;
+        for (var r = 0; r < targetRowIdx; r++) {
+          var row = tbody.rows[r];
+          if (row && row.children[colIdx]) row.children[colIdx].classList.add("guide-v");
+        }
+      }
+
+      // ガイド線：該当行の、符（役）の列から該当列までのセルに上下の線を引く。
+      // 両端のうち符（役）の列には外側の線も、該当セルには四方の線を付ける
+      function guideRow(row, startCol, endCol, centerCol, targetCol) {
+        if (!row) return;
+        for (var c = startCol; c <= endCol; c++) {
+          var cell = row.children[c];
+          if (!cell) continue;
+          if (c === targetCol) cell.classList.add("guide-cross");
+          else if (c === centerCol) cell.classList.add(c === startCol ? "guide-hl" : "guide-hr");
+          else cell.classList.add("guide-h");
+        }
+      }
+
+      function updateTableHighlights(baseInfo) {
+        clearTableHighlights();
+        var focusClass = state.tsumo ? "focus-tsumo" : "focus-ron";
+        var fuIndex = FU_LIST.indexOf(state.fu);
+
+        // ---- 表4：1〜4翻のとき、符×翻×親子のセル ----
+        if (state.han >= 1 && state.han <= 4 && fuIndex !== -1 && el.panel4) {
+          // 広い画面（9列）
+          var wide4 = el.panel4.querySelector(".score-wide .full-table");
+          if (wide4 && wide4.tBodies[0] && wide4.tBodies[0].rows[fuIndex]) {
+            var rowWide4 = wide4.tBodies[0].rows[fuIndex];
+            // 列の位置: 子どもは符列(4)の右に 1翻=5 … 4翻=8、親は符列の左に 1翻=3 … 4翻=0
+            var colWide4 = state.dealer ? 4 - state.han : 4 + state.han;
+            if (rowWide4.children[colWide4]) {
+              rowWide4.children[colWide4].classList.add("is-highlight", focusClass);
+            }
+            if (rowWide4.children[4]) rowWide4.children[4].classList.add("is-highlight"); // 符セル
+            // ガイド線：翻の見出しから該当セルまで列を囲み、符セルから該当セルまで行を囲む
+            guideColumn(wide4.tBodies[0], colWide4, fuIndex);
+            guideRow(
+              rowWide4,
+              Math.min(4, colWide4), Math.max(4, colWide4),
+              4, colWide4
+            );
+            // 翻の見出し（2段目の見出し行）：符セルと同じ黄色で色付けし、列の線の始まりにする
+            if (wide4.tHead && wide4.tHead.rows[1]) {
+              var headCol = state.dealer ? 4 - state.han : 3 + state.han;
+              if (wide4.tHead.rows[1].children[headCol]) {
+                wide4.tHead.rows[1].children[headCol].classList.add("is-highlight", "guide-vt");
+              }
+            }
+            // 親／子の見出し（1段目）
+            if (wide4.tHead && wide4.tHead.rows[0]) {
+              var sideCell = wide4.tHead.rows[0].children[state.dealer ? 0 : 2];
+              if (sideCell) sideCell.classList.add("is-highlight-soft");
+            }
+          }
+          // 狭い画面（親・子の2表）
+          var split4 = el.panel4.querySelectorAll(".score-split .full-table");
+          var tableSplit4 = split4[state.dealer ? 0 : 1];
+          if (tableSplit4 && tableSplit4.tBodies[0] && tableSplit4.tBodies[0].rows[fuIndex]) {
+            var rowSplit4 = tableSplit4.tBodies[0].rows[fuIndex];
+            // 列の位置: 0=符、1=1翻 … 4=4翻
+            if (rowSplit4.children[state.han]) {
+              rowSplit4.children[state.han].classList.add("is-highlight", focusClass);
+            }
+            if (rowSplit4.children[0]) rowSplit4.children[0].classList.add("is-highlight");
+            // ガイド線：広い画面版と同じく、見出しから該当セルまで列を、符セルから該当セルまで行を囲む
+            guideColumn(tableSplit4.tBodies[0], state.han, fuIndex);
+            guideRow(rowSplit4, 0, state.han, 0, state.han);
+            if (tableSplit4.tHead && tableSplit4.tHead.rows[0] && tableSplit4.tHead.rows[0].children[state.han]) {
+              tableSplit4.tHead.rows[0].children[state.han].classList.add("is-highlight", "guide-vt");
+            }
+            var block4 = tableSplit4.closest(".split-block");
+            if (block4) {
+              var head4 = block4.querySelector(".split-head");
+              if (head4) head4.classList.add("is-highlight-soft");
+            }
+          }
+        }
+
+        // ---- 表5：満貫以上（5翻以上、または符計算で満貫に届いたとき） ----
+        if (baseInfo && baseInfo.name && el.panel5) {
+          var yakuOrder = { "満貫": 0, "跳満": 1, "倍満": 2, "三倍満": 3, "数え役満": 4 };
+          var yakuIndex = yakuOrder[baseInfo.name];
+          if (yakuIndex !== undefined) {
+            // 広い画面（親／役／子）
+            var wide5 = el.panel5.querySelector(".score-wide .full-table");
+            if (wide5 && wide5.tBodies[0] && wide5.tBodies[0].rows[yakuIndex]) {
+              var rowWide5 = wide5.tBodies[0].rows[yakuIndex];
+              // 列の位置: 0=親、1=役、2=子
+              var colWide5 = state.dealer ? 0 : 2;
+              if (rowWide5.children[colWide5]) {
+                rowWide5.children[colWide5].classList.add("is-highlight", focusClass);
+              }
+              if (rowWide5.children[1]) rowWide5.children[1].classList.add("is-highlight"); // 役セル
+              // ガイド線：表4と同じく、見出しから該当セルまで列を、役セルから該当セルまで行を囲む
+              guideColumn(wide5.tBodies[0], colWide5, yakuIndex);
+              guideRow(
+                rowWide5,
+                Math.min(1, colWide5), Math.max(1, colWide5),
+                1, colWide5
+              );
+              // 「ロン（ツモ）」の見出し（2段目）：黄色で色付けし、列の線の始まりにする
+              // 見出し行の子要素は 0=親側、1=子側（役の列は1段目と結合している）
+              if (wide5.tHead && wide5.tHead.rows[1] && wide5.tHead.rows[1].children[state.dealer ? 0 : 1]) {
+                wide5.tHead.rows[1].children[state.dealer ? 0 : 1].classList.add("is-highlight", "guide-vt");
+              }
+              if (wide5.tHead && wide5.tHead.rows[0]) {
+                var sideCell5 = wide5.tHead.rows[0].children[state.dealer ? 0 : 2];
+                if (sideCell5) sideCell5.classList.add("is-highlight-soft");
+              }
+            }
+            // 狭い画面（親・子の2表、ロンとツモが別列）
+            var split5 = el.panel5.querySelectorAll(".score-split .full-table");
+            var tableSplit5 = split5[state.dealer ? 0 : 1];
+            if (tableSplit5 && tableSplit5.tBodies[0] && tableSplit5.tBodies[0].rows[yakuIndex]) {
+              var rowSplit5 = tableSplit5.tBodies[0].rows[yakuIndex];
+              // 列の位置: 0=役、1=ロン、2=ツモ → あがり方に合う列だけを強く光らせる
+              var payCol = state.tsumo ? 2 : 1;
+              if (rowSplit5.children[payCol]) {
+                rowSplit5.children[payCol].classList.add("is-highlight", focusClass);
+              }
+              if (rowSplit5.children[0]) rowSplit5.children[0].classList.add("is-highlight");
+              // ガイド線：見出しから該当セルまで列を、役セルから該当セルまで行を囲む
+              guideColumn(tableSplit5.tBodies[0], payCol, yakuIndex);
+              guideRow(rowSplit5, 0, payCol, 0, payCol);
+              if (tableSplit5.tHead && tableSplit5.tHead.rows[0] && tableSplit5.tHead.rows[0].children[payCol]) {
+                tableSplit5.tHead.rows[0].children[payCol].classList.add("is-highlight", "guide-vt");
+              }
+              var block5 = tableSplit5.closest(".split-block");
+              if (block5) {
+                var head5 = block5.querySelector(".split-head");
+                if (head5) head5.classList.add("is-highlight-soft");
+              }
+            }
+          }
+        }
+      }
+
+      // ---- 状態をもとに画面全体を描き直す ----
+      function render() {
+        // ロジック制御: 20符・25符は最低2翻のため、1翻との組み合わせを作らせない
+        // （符・翻の両方が選ばれているときだけ働く。未選択の間は働かせない）
+        var fuNeedsMin2Han = state.fu === 20 || state.fu === 25;
+        if (fuNeedsMin2Han && state.han === 1) state.han = 2;
+        // ロジック制御: 20符は平和ツモのみのため、ロンとの組み合わせを作らせない
+        // （ロンへの切り替え時の30符への寄せと同じルールを、描画時にも保証する）
+        // ロンと確定しているとき（tsumo === false）だけ働く。未選択（null）の間は働かせない
+        if (state.tsumo === false && state.fu === 20) state.fu = 30;
+
+        // ボタンの選択状態（未選択 = null のときはどちらも押されていない状態にする）
+        el.dealer.setAttribute("aria-pressed", String(state.dealer === true));
+        el.child.setAttribute("aria-pressed", String(state.dealer === false));
+        el.ron.setAttribute("aria-pressed", String(state.tsumo === false));
+        el.tsumo.setAttribute("aria-pressed", String(state.tsumo === true));
+
+        el.hanChips.querySelectorAll("button").forEach(function (btn) {
+          var h = Number(btn.getAttribute("data-han"));
+          btn.setAttribute("aria-pressed", String(state.han !== null && h === state.han));
+          // 20符・25符のときだけ「1翻」ボタンを押せなくする（未選択の間は全ボタン選べる）
+          btn.disabled = fuNeedsMin2Han && h === 1;
+        });
+        el.fuChips.querySelectorAll("button").forEach(function (btn) {
+          var f = Number(btn.getAttribute("data-fu"));
+          btn.setAttribute("aria-pressed", String(state.fu !== null && f === state.fu));
+          // ロンのときだけ「20符」ボタンを押せなくする（20符は平和ツモのみ）
+          // 未選択（tsumo === null）の間は押せるままにする
+          btn.disabled = state.tsumo === false && f === 20;
+        });
+        el.hanChosen.textContent =
+          state.han === null ? "" : state.han >= 13 ? "13翻以上" : state.han + "翻";
+        el.fuChosen.textContent = state.fu === null ? "" : state.fu + "符";
+
+        // 未選択の項目が1つでもあれば、結果・内訳・ハイライトはすべて空にする
+        var isComplete =
+          state.dealer !== null && state.tsumo !== null &&
+          state.han !== null && state.fu !== null;
+        if (!isComplete) {
+          el.whoHow.textContent = "";
+          el.fuHan.textContent = "";
+          el.scoreMain.textContent = "";
+          el.tsumoDetail.textContent = "";
+          el.handName.textContent = "";
+          var resultPanelEmpty = el.handName.closest(".result");
+          if (resultPanelEmpty) resultPanelEmpty.classList.remove("limit-hand");
+          el.bdBase.textContent = "";
+          el.bdMult.textContent = "";
+          el.bdRound.textContent = "";
+          el.bdFormula.textContent = "";
+          clearTableHighlights();
+          return;
+        }
+
+        // 計算
+        var r = calcScore(state.dealer, state.tsumo, state.han, state.fu);
+        var b = r.baseInfo;
+
+        // 結果パネル
+        el.handName.textContent = b.name;
+        // 満貫以上のときは左下のツモ内訳だけを共通の小さめサイズにする
+        // （右下の役名のサイズは変えない）
+        var isLimitHand = b.name !== "";
+        var resultPanel = el.handName.closest(".result");
+        if (resultPanel) resultPanel.classList.toggle("limit-hand", isLimitHand);
+        if (r.type === "ron") {
+          el.scoreMain.innerHTML = fmt(r.total) + '<span class="unit">点</span>';
+          el.tsumoDetail.textContent = "";
+        } else if (r.type === "tsumoAll") {
+          // 親ツモ: 中央は3人からもらえる合計、左下は1人分の支払い
+          el.scoreMain.innerHTML = fmt(r.total) + '<span class="unit">点</span>';
+          el.tsumoDetail.textContent = fmt(r.each) + "点オール";
+        } else {
+          // 子ツモ: 中央は親と子からもらえる合計、左下は子と親の支払い
+          el.scoreMain.innerHTML = fmt(r.total) + '<span class="unit">点</span>';
+          el.tsumoDetail.innerHTML =
+            '<span class="pay">子 ' + fmt(r.fromChild) + '点</span> / ' +
+            '<span class="pay">親 ' + fmt(r.fromDealer) + "点</span>";
+        }
+        // 左上：親子・ロン/ツモ
+        el.whoHow.textContent =
+          (state.dealer ? "親" : "子") + "・" + (state.tsumo ? "ツモ" : "ロン");
+        // 中央：符 → 翻（点数は score-main に表示）
+        el.fuHan.textContent =
+          state.fu + "符" + "　" + (state.han >= 13 ? "13翻以上" : state.han + "翻");
+
+        // 内訳
+        if (state.han >= 5) {
+          el.bdBase.textContent = b.name + "のため " + fmt(b.base) + "点で固定";
+        } else if (b.raw > b.base) {
+          el.bdBase.textContent = fmt(b.base) + "点（満貫で頭打ち）";
+        } else {
+          el.bdBase.textContent = fmt(b.base) + "点";
+        }
+
+        // 式（最後の行）：基本点の式に、支払いの元になる倍率まで含める
+        var baseExpr;
+        if (state.han >= 5) {
+          baseExpr = state.han + "翻 → " + b.name + "（基本点 " + fmt(b.base) + "）";
+        } else if (b.raw > b.base) {
+          baseExpr = state.fu + "符 × 2^(" + state.han + "+2) = " + fmt(b.raw) + " → 満貫の基本点 2000";
+        } else {
+          baseExpr = state.fu + "符 × 2^(" + state.han + "+2) = " + fmt(b.raw);
+        }
+        function formulaWithMult(mult, rounded) {
+          var product = b.base * mult;
+          var s = baseExpr + " × " + mult + " = " + fmt(product);
+          if (product !== rounded) {
+            s += " → " + fmt(rounded) + "点";
+          } else {
+            s += "点";
+          }
+          return s;
+        }
+        var formulaLines;
+        if (r.type === "tsumoSplit") {
+          // 子ツモは倍率が子と親で違うため、子の式と親の式を2行で表示する
+          formulaLines = [
+            "子： " + formulaWithMult(1, r.fromChild),
+            "親： " + formulaWithMult(2, r.fromDealer)
+          ];
+        } else if (r.type === "tsumoAll") {
+          formulaLines = [formulaWithMult(2, r.each)];
+        } else {
+          formulaLines = [formulaWithMult(r.mult, r.total)];
+        }
+        el.bdFormula.textContent = "";
+        formulaLines.forEach(function (line) {
+          var lineEl = document.createElement("div");
+          lineEl.textContent = line;
+          el.bdFormula.appendChild(lineEl);
+        });
+
+        if (r.type === "ron") {
+          el.bdMult.textContent = (state.dealer ? "親ロン = 基本点 × 6" : "子ロン = 基本点 × 4");
+          el.bdRound.textContent = fmt(b.base * r.mult) + " → " + fmt(r.total) + "点";
+        } else if (r.type === "tsumoAll") {
+          el.bdMult.textContent = "親ツモ = 基本点 × 2（全員）";
+          el.bdRound.textContent = fmt(b.base * 2) + " → " + fmt(r.each) + "点（1人分）";
+        } else {
+          el.bdMult.textContent = "子ツモ = 子 ×1 / 親 ×2";
+          el.bdRound.textContent = "子 " + fmt(b.base) + " → " + fmt(r.fromChild) + "点 / 親 " + fmt(b.base * 2) + " → " + fmt(r.fromDealer) + "点";
+        }
+
+        // 早見表（4・5）で、現在の入力に該当する位置をハイライトする
+        updateTableHighlights(b);
+      }
+
+      // 初期表示
+      render();
+    </script>
+  </body>
+</html>
