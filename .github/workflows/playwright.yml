@@ -1,4 +1,5 @@
 name: Playwright Tests
+run-name: Playwright Tests (${{ inputs.group || 'auto' }})
 on:
   push:
     branches: [main]
@@ -9,13 +10,11 @@ on:
       group:
         description: '回すグループ（A〜J、または ALL で540通り全部）'
         required: false
-        default: 'A'
+        default: ''
 jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
-    env:
-      TEST_GROUP: ${{ inputs.group || 'A' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,6 +24,28 @@ jobs:
         run: npm install
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
+      # 回すグループを決める。
+      # ・手動実行でグループを選んだときは、そのグループを回す（回数は数えない）。
+      # ・push / PR のときは、これまでの push の回数から自動で決める。
+      #   1回目の push は A、2回目は B、3回目は C……J の次は A に戻る。
+      #   手動実行は push の回数に入らないので、間に手動をはさんでも
+      #   次の push のグループはズレない。
+      - name: Determine test group
+        id: group
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ inputs.group }}" ]; then
+            GROUP="${{ inputs.group }}"
+          else
+            PUSH_COUNT=$(gh api "repos/${{ github.repository }}/actions/runs?event=push&per_page=100" --jq "[.workflow_runs[] | select(.id != ${{ github.run_id }})] | length")
+            LETTERS="ABCDEFGHIJ"
+            INDEX=$((PUSH_COUNT % 10))
+            GROUP=${LETTERS:$INDEX:1}
+          fi
+          echo "group=$GROUP" >> "$GITHUB_OUTPUT"
+          echo "TEST_GROUP=$GROUP" >> "$GITHUB_ENV"
+          echo "今回のグループ: $GROUP"
       - name: Run Playwright tests
         run: npx playwright test
       - uses: actions/upload-artifact@v4
