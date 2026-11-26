@@ -394,6 +394,72 @@
         letter-spacing: 0.02em;
         white-space: nowrap;
       }
+      /* 右上：満貫切り上げスイッチ（常時表示。対象外のときはグレーアウトして押せなくする） */
+      .mangan-btn {
+        position: absolute;
+        top: 10px;
+        right: 16px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 36px;
+        padding: 6px 12px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        line-height: 1.3;
+        color: var(--felt-ink);
+        background: rgba(0, 0, 0, 0.28);
+        border: 2px solid rgba(245, 241, 227, 0.55);
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      .mangan-btn:not(:disabled):hover { border-color: #f2c94c; }
+      /* 対象外のときはグレーアウトして押せなくする。
+         保持しているON/OFFの見た目はそのまま残し、「今は効かない」ことだけを伝える */
+      .mangan-btn:disabled {
+        opacity: 0.45;
+        filter: saturate(0.35);
+        cursor: not-allowed;
+      }
+      .mangan-btn .mangan-track {
+        position: relative;
+        flex: 0 0 auto;
+        width: 30px;
+        height: 17px;
+        border-radius: 999px;
+        background: rgba(245, 241, 227, 0.35);
+      }
+      .mangan-btn .mangan-track::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--felt-ink);
+        transition: left 0.15s ease, background 0.15s ease;
+      }
+      .mangan-btn.is-on {
+        background: #f2c94c;
+        border-color: #f2c94c;
+        color: #1d2b23;
+      }
+      .mangan-btn.is-on .mangan-track { background: rgba(29, 43, 35, 0.35); }
+      .mangan-btn.is-on .mangan-track::after { left: 15px; background: #1d2b23; }
+      @media (prefers-reduced-motion: reduce) {
+        .mangan-btn .mangan-track::after { transition: none; }
+      }
+      @media (max-width: 760px) {
+        .mangan-btn {
+          top: 9px;
+          right: 12px;
+          min-height: 32px;
+          padding: 5px 9px;
+          font-size: 0.74rem;
+          gap: 6px;
+        }
+      }
       /* 中央：符・翻 */
       .result .fu-han {
         font-size: 1.05rem;
@@ -769,6 +835,7 @@
       <!-- ============ 2：結果（右上） ============ -->
       <section class="result panel-result" aria-live="polite" aria-label="計算結果">
         <div class="who-how" id="who-how"></div>
+        <button type="button" class="mangan-btn" id="btn-mangan" aria-pressed="false" disabled><span class="mangan-track" aria-hidden="true"></span><span id="mangan-btn-text">満貫切り上げ：OFF</span></button>
         <div class="result-center">
           <div class="fu-han" id="fu-han"></div>
           <div class="score-main" id="score-main"></div>
@@ -1103,8 +1170,25 @@
         dealer: null, // 親かどうか（null = 未選択）
         tsumo: null,  // ツモかどうか（false = ロン、null = 未選択）
         han: null,    // 翻数（13 = 13翻以上として扱う、null = 未選択）
-        fu: null      // 符（null = 未選択）
+        fu: null,     // 符（null = 未選択）
+        manganKiriage: false // 満貫切り上げスイッチ（初期状態はOFF）
       };
+
+      // ---- 満貫切り上げの対象判定 ----
+      // 対象は 30符4翻 と 60符3翻 のみ（親/子・ロン/ツモは問わない＝8パターン）
+      function isKiriageTarget() {
+        return (state.fu === 30 && state.han === 4) ||
+               (state.fu === 60 && state.han === 3);
+      }
+
+      // ---- 切り上げONのときに計算へ使う符 ----
+      // 30符4翻は40符4翻と、60符3翻は70符3翻と同じ挙動にする
+      function effectiveFu() {
+        if (state.manganKiriage && isKiriageTarget()) {
+          return state.fu === 30 ? 40 : 70;
+        }
+        return state.fu;
+      }
 
       // ---- 100点単位への切り上げ ----
       function roundUp100(n) {
@@ -1179,7 +1263,9 @@
         bdFormula: document.getElementById("bd-formula"),
         panel4: document.getElementById("panel-table4"),
         panel5: document.getElementById("panel-table5"),
-        clear: document.getElementById("btn-clear")
+        clear: document.getElementById("btn-clear"),
+        manganBtn: document.getElementById("btn-mangan"),
+        manganBtnText: document.getElementById("mangan-btn-text")
       };
 
       // 翻チップを生成
@@ -1245,6 +1331,16 @@
       });
       el.tsumo.addEventListener("click", function () { state.tsumo = true; render(); });
 
+      // 満貫切り上げスイッチ: ON/OFFを切り替えて再描画する
+      // （対象外の組み合わせでは render() 側でグレーアウトされ、ボタン自体が押せない。
+      //   ON/OFFの状態は対象外に移っても保持され、対象に戻ると再び効く）
+      if (el.manganBtn) {
+        el.manganBtn.addEventListener("click", function () {
+          state.manganKiriage = !state.manganKiriage;
+          render();
+        });
+      }
+
       // 「入力Clear」: 親・子、ロン・ツモ、符、翻の選択をすべて解除し、
       // ページのトップまでスクロールして戻る
       if (el.clear) {
@@ -1253,6 +1349,7 @@
           state.tsumo = null;
           state.han = null;
           state.fu = null;
+          state.manganKiriage = false;
           render();
           // スクロールは内側の .wrap だけにある（body は固定）ので、.wrap をトップに戻す。
           // 外側がスクロールする表示でも戻るよう、window 側も合わせて戻す
@@ -1286,6 +1383,67 @@
             "is-highlight", "is-highlight-soft", "focus-ron", "focus-tsumo",
             "guide-v", "guide-vt", "guide-h", "guide-hl", "guide-hr", "guide-cross"
           );
+        });
+      }
+
+      // ============================================================
+      // 早見表（4）の満貫切り上げ表記
+      // 対象セルの元の表記を覚えておき、切り上げが効いているときだけ
+      // ロンの数字（7,700／11,600など）を、他の満貫セルと同じ
+      // 「満貫」表記に切り替える。ツモの支払いも満貫の支払い
+      // （子 2,000/4,000、親 4,000オール）にそろえる。
+      // 効かなくなったら、覚えておいた元の表記へ正確に戻す。
+      // ============================================================
+      // 指定した符・翻のセル（広い画面版＋狭い画面版の親・子）を集める
+      function table4TargetCells(fu, han) {
+        var cells = [];
+        if (!el.panel4) return cells;
+        var fuIndex = FU_LIST.indexOf(fu);
+        if (fuIndex === -1) return cells;
+        var wide4 = el.panel4.querySelector(".score-wide .full-table");
+        if (wide4 && wide4.tBodies[0] && wide4.tBodies[0].rows[fuIndex]) {
+          var rowWide = wide4.tBodies[0].rows[fuIndex];
+          if (rowWide.children[4 - han]) cells.push({ cell: rowWide.children[4 - han], dealer: true });
+          if (rowWide.children[4 + han]) cells.push({ cell: rowWide.children[4 + han], dealer: false });
+        }
+        var split4 = el.panel4.querySelectorAll(".score-split .full-table");
+        [true, false].forEach(function (isDealer) {
+          var table = split4[isDealer ? 0 : 1];
+          if (table && table.tBodies[0] && table.tBodies[0].rows[fuIndex]) {
+            var rowSplit = table.tBodies[0].rows[fuIndex];
+            if (rowSplit.children[han]) cells.push({ cell: rowSplit.children[han], dealer: isDealer });
+          }
+        });
+        return cells;
+      }
+
+      // 対象セル（30符4翻・60符3翻）の表記をすべて元に戻す
+      function restoreKiriageNumbers() {
+        [[30, 4], [60, 3]].forEach(function (combo) {
+          table4TargetCells(combo[0], combo[1]).forEach(function (item) {
+            var ronEl = item.cell.querySelector(".ron");
+            var tsumoEl = item.cell.querySelector(".tsumo");
+            if (ronEl && item.cell.dataset.kiriRon !== undefined) ronEl.textContent = item.cell.dataset.kiriRon;
+            if (tsumoEl && item.cell.dataset.kiriTsumo !== undefined) tsumoEl.textContent = item.cell.dataset.kiriTsumo;
+          });
+        });
+      }
+
+      // スイッチの状態に合わせて、現在の対象セルの表記を切り替える
+      function updateKiriageTableNumbers() {
+        restoreKiriageNumbers();
+        if (!state.manganKiriage || !isKiriageTarget()) return;
+        table4TargetCells(state.fu, state.han).forEach(function (item) {
+          var ronEl = item.cell.querySelector(".ron");
+          var tsumoEl = item.cell.querySelector(".tsumo");
+          if (ronEl) {
+            if (item.cell.dataset.kiriRon === undefined) item.cell.dataset.kiriRon = ronEl.textContent;
+            ronEl.textContent = "満貫";
+          }
+          if (tsumoEl) {
+            if (item.cell.dataset.kiriTsumo === undefined) item.cell.dataset.kiriTsumo = tsumoEl.textContent;
+            tsumoEl.textContent = item.dealer ? "(4,000)" : "(2,000/4,000)";
+          }
         });
       }
 
@@ -1432,6 +1590,23 @@
         }
       }
 
+      // ---- 満貫切り上げスイッチの描画 ----
+      // スイッチはカード2右上に常時表示する。enabled が false のとき
+      // （対象外のパターン、または結果が表示されていない状態）は
+      // グレーアウトして押せなくするが、保持しているON/OFFの状態は
+      // そのまま見た目に反映する（対象パターンに戻れば再び効くため）。
+      // 「対象かどうか」の判定は isKiriageTarget() に一本化し、
+      // ここではその結果を受け取って出し分けるだけにする
+      function renderManganSwitch(enabled) {
+        if (!el.manganBtn) return;
+        el.manganBtn.disabled = !enabled;
+        el.manganBtn.setAttribute("aria-pressed", String(state.manganKiriage));
+        el.manganBtn.classList.toggle("is-on", state.manganKiriage);
+        if (el.manganBtnText) {
+          el.manganBtnText.textContent = "満貫切り上げ：" + (state.manganKiriage ? "ON" : "OFF");
+        }
+      }
+
       // ---- 状態をもとに画面全体を描き直す ----
       function render() {
         // ロジック制御: 20符・25符は最低2翻のため、1翻との組み合わせを作らせない
@@ -1442,6 +1617,10 @@
         // （ロンへの切り替え時の30符への寄せと同じルールを、描画時にも保証する）
         // ロンと確定しているとき（tsumo === false）だけ働く。未選択（null）の間は働かせない
         if (state.tsumo === false && state.fu === 20) state.fu = 30;
+
+        // 満貫切り上げ: 対象外の組み合わせに移ってもON/OFFの状態は保持する
+        // （OFFに戻るのは「入力Clear」を押したときだけ）。切り上げが効くかどうかは
+        // isKiriageTarget() と effectiveFu() が都度判定する
 
         // ボタンの選択状態（未選択 = null のときはどちらも押されていない状態にする）
         el.dealer.setAttribute("aria-pressed", String(state.dealer === true));
@@ -1482,15 +1661,22 @@
           el.bdMult.textContent = "";
           el.bdRound.textContent = "";
           el.bdFormula.textContent = "";
+          // 結果が表示されていない間は、スイッチは見えるが押せない状態にする
+          renderManganSwitch(false);
           clearTableHighlights();
+          updateKiriageTableNumbers();
           return;
         }
 
-        // 計算
-        var r = calcScore(state.dealer, state.tsumo, state.han, state.fu);
+        // 満貫切り上げスイッチ: 常時表示し、対象の8パターンのときだけ押せるようにする
+        renderManganSwitch(isKiriageTarget());
+
+        // 計算（切り上げONのときは 30符4翻→40符、60符3翻→70符 として計算する）
+        var effFu = effectiveFu();
+        var r = calcScore(state.dealer, state.tsumo, state.han, effFu);
         var b = r.baseInfo;
 
-        // 結果パネル
+        // 結果パネル（役名は親子とも表示する。切り上げで満貫になる場合も同じ）
         el.handName.textContent = b.name;
         // 満貫以上のときは左下のツモ内訳だけを共通の小さめサイズにする
         // （右下の役名のサイズは変えない）
@@ -1532,9 +1718,9 @@
         if (state.han >= 5) {
           baseExpr = state.han + "翻 → " + b.name + "（基本点 " + fmt(b.base) + "）";
         } else if (b.raw > b.base) {
-          baseExpr = state.fu + "符 × 2^(" + state.han + "+2) = " + fmt(b.raw) + " → 満貫の基本点 2000";
+          baseExpr = effFu + "符 × 2^(" + state.han + "+2) = " + fmt(b.raw) + " → 満貫の基本点 2000";
         } else {
-          baseExpr = state.fu + "符 × 2^(" + state.han + "+2) = " + fmt(b.raw);
+          baseExpr = effFu + "符 × 2^(" + state.han + "+2) = " + fmt(b.raw);
         }
         function formulaWithMult(mult, rounded) {
           var product = b.base * mult;
@@ -1577,7 +1763,11 @@
         }
 
         // 早見表（4・5）で、現在の入力に該当する位置をハイライトする
+        // 切り上げONで満貫になると、表4に加えて表5（満貫の行）もハイライトされる
         updateTableHighlights(b);
+
+        // 早見表（4）の対象セルの表記を、スイッチの状態に合わせて切り替える
+        updateKiriageTableNumbers();
       }
 
       // 初期表示

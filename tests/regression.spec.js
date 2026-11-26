@@ -130,3 +130,80 @@ test.describe('表示とリセット', () => {
     await expect(page.locator('#hand-name')).toHaveText('満貫');
   });
 });
+
+test.describe('満貫切り上げスイッチ（#2の仕様）', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(APP_URL);
+  });
+
+  test('切り上げON・子・30符4翻で役名「満貫」が出て8,000点になる', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 4 });
+    await expect(page.locator('#score-main')).toContainText('7,700');
+    await expect(page.locator('#btn-mangan')).toBeEnabled();
+    await page.click('#btn-mangan');
+    await expect(page.locator('#score-main')).toContainText('8,000');
+    // #1のQAで見つかった「子の役名が出ない」不具合の再発防止
+    await expect(page.locator('#hand-name')).toHaveText('満貫');
+  });
+
+  test('対象外のパターンではスイッチがグレーアウトして押せない', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 3 });
+    await expect(page.locator('#btn-mangan')).toBeDisabled();
+  });
+
+  test('ONのまま対象外に移っても状態が保持され、対象に戻るとまた効く', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 4 });
+    await page.click('#btn-mangan');
+    await expect(page.locator('#score-main')).toContainText('8,000');
+    await page.locator('#han-chips button[data-han="3"]').click();
+    // 対象外ではグレーアウトするが、ONの表示は残る（勝手にOFFに戻らない）
+    await expect(page.locator('#btn-mangan')).toBeDisabled();
+    await expect(page.locator('#mangan-btn-text')).toContainText('ON');
+    await expect(page.locator('#score-main')).toContainText('3,900');
+    await page.locator('#han-chips button[data-han="4"]').click();
+    await expect(page.locator('#score-main')).toContainText('8,000');
+    await expect(page.locator('#hand-name')).toHaveText('満貫');
+  });
+
+  // 切り上げ対象は30符4翻と60符3翻の8パターン（親子×ロン/ツモ）。
+  // 30符4翻も60符3翻も基本点は1,920で同じなので、点数は一致する。
+  const kiriageCases = [
+    { dealer: false, tsumo: false, fu: 30, han: 4, off: 7700, on: 8000 },
+    { dealer: false, tsumo: true, fu: 30, han: 4, off: 7900, on: 8000, fromChild: 2000, fromDealer: 4000 },
+    { dealer: true, tsumo: false, fu: 30, han: 4, off: 11600, on: 12000 },
+    { dealer: true, tsumo: true, fu: 30, han: 4, off: 11700, on: 12000, each: 4000 },
+    { dealer: false, tsumo: false, fu: 60, han: 3, off: 7700, on: 8000 },
+    { dealer: false, tsumo: true, fu: 60, han: 3, off: 7900, on: 8000, fromChild: 2000, fromDealer: 4000 },
+    { dealer: true, tsumo: false, fu: 60, han: 3, off: 11600, on: 12000 },
+    { dealer: true, tsumo: true, fu: 60, han: 3, off: 11700, on: 12000, each: 4000 },
+  ];
+  for (const c of kiriageCases) {
+    const who = `${c.dealer ? '親' : '子'}・${c.tsumo ? 'ツモ' : 'ロン'}・${c.fu}符・${c.han}翻`;
+    test(`切り上げON: ${who} は ${fmt(c.off)}点 → ${fmt(c.on)}点（満貫）になる`, async ({ page }) => {
+      await select(page, c);
+      await expect(page.locator('#score-main')).toContainText(fmt(c.off));
+      await expect(page.locator('#btn-mangan')).toBeEnabled();
+      await page.click('#btn-mangan');
+      await expect(page.locator('#score-main')).toContainText(fmt(c.on));
+      await expect(page.locator('#hand-name')).toHaveText('満貫');
+      if (c.tsumo && c.dealer) {
+        await expect(page.locator('#tsumo-detail')).toContainText(`${fmt(c.each)}点オール`);
+      }
+      if (c.tsumo && !c.dealer) {
+        await expect(page.locator('#tsumo-detail')).toContainText(fmt(c.fromChild));
+        await expect(page.locator('#tsumo-detail')).toContainText(fmt(c.fromDealer));
+      }
+    });
+  }
+
+  test('切り上げONで早見表4の対象セルが「満貫」表記になり、OFFで数字に戻る', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 4 });
+    const cell = page.locator('#panel-table4 .score-wide td.guide-cross');
+    await expect(cell).toContainText('7,700');
+    await page.click('#btn-mangan');
+    // F-01の決定：切り上げが効いている間、対象セルは数字ではなく「満貫」と表示する
+    await expect(cell).toContainText('満貫');
+    await page.click('#btn-mangan');
+    await expect(cell).toContainText('7,700');
+  });
+});
