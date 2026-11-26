@@ -111,6 +111,7 @@
         body { height: auto; overflow: visible; }
         .wrap { overflow: visible; }
         .page-head { position: static; }
+        .page-foot { box-shadow: none; }
       }
 
       /* ===== レイアウト：上段（1左 / 2右上 / 3右下）＋ 下段（4全幅） ===== */
@@ -782,11 +783,32 @@
         .panel-input .chip-tip button { flex: 1 1 auto; }
       }
 
-      footer {
+      /* ===== フッター（画面下部の固定バー） =====
+         ヘッダーと対になる常時表示バー。body が 100dvh の flex column で、
+         .wrap（スクロール領域）の外に置くため、スクロールしても常に
+         画面下部に残る。幅は .wrap と同じ max-width にそろえ、ヘッダーと
+         同じ背景・区切り線・影のトーンで統一する。
+         バーは細く保ち、スマホの縦領域を圧迫しない（余白は最小限、
+         ホームインジケータ分は safe-area で確保する） */
+      .page-foot {
+        flex: 0 0 auto;
+        width: 100%;
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 7px 16px calc(7px + env(safe-area-inset-bottom, 0px));
+        background: var(--bg);
+        border-top: 1px solid var(--line);
+        box-shadow: 0 -8px 14px -12px rgba(0, 0, 0, 0.35);
         color: var(--muted);
         font-size: 0.8rem;
+        line-height: 1.4;
         text-align: center;
-        margin-top: 24px;
+      }
+      @media (max-width: 760px) {
+        .page-foot {
+          padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
+          font-size: 0.76rem;
+        }
       }
     </style>
   </head>
@@ -1147,8 +1169,9 @@
         </div>
       </section>
 
-      <footer>© 2026 R.KTN — Built with Muse</footer>
     </div>
+
+    <footer class="page-foot">© 2026 R.KTN — Built with Muse</footer>
 
     <script>
       // ============================================================
