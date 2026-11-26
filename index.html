@@ -1554,8 +1554,10 @@
           }
         }
 
-        // ---- 表5：満貫以上（5翻以上、または符計算で満貫に届いたとき） ----
-        if (baseInfo && baseInfo.name && el.panel5) {
+        // ---- 表5：満貫以上（5翻以上のときだけ） ----
+        // 1〜4翻の満貫（符計算で満貫に届いた場合や切り上げON時）は
+        // 答えの居場所である表4だけをハイライトし、表5は光らせない
+        if (state.han >= 5 && baseInfo && baseInfo.name && el.panel5) {
           var yakuOrder = { "満貫": 0, "跳満": 1, "倍満": 2, "三倍満": 3, "数え役満": 4 };
           var yakuIndex = yakuOrder[baseInfo.name];
           if (yakuIndex !== undefined) {
@@ -1785,8 +1787,8 @@
           el.bdRound.textContent = "子 " + fmt(b.base) + " → " + fmt(r.fromChild) + "点 / 親 " + fmt(b.base * 2) + " → " + fmt(r.fromDealer) + "点";
         }
 
-        // 早見表（4・5）で、現在の入力に該当する位置をハイライトする
-        // 切り上げONで満貫になると、表4に加えて表5（満貫の行）もハイライトされる
+        // 早見表で、現在の入力に該当する位置をハイライトする
+        // ハイライトは答えの居場所だけ：1〜4翻は表4のみ、5翻以上は表5のみ
         updateTableHighlights(b);
 
         // 早見表（4）の対象セルの表記を、スイッチの状態に合わせて切り替える
