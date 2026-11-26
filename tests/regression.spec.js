@@ -207,3 +207,34 @@ test.describe('満貫切り上げスイッチ（#2の仕様）', () => {
     await expect(cell).toContainText('7,700');
   });
 });
+
+test.describe('ハイライト整理（#4の仕様）', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(APP_URL);
+  });
+
+  test('40符4翻（満貫）では早見表4だけがハイライトし、早見表5はハイライトしない', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 40, han: 4 });
+    await expect(page.locator('#hand-name')).toHaveText('満貫');
+    await expect(page.locator('#panel-table4 .score-wide .guide-cross')).toHaveCount(1);
+    // #4で廃止した「両方ハイライト」の再発防止（消した振る舞いの negative アサーション）
+    await expect(page.locator('#panel-table5 .guide-cross')).toHaveCount(0);
+    await expect(page.locator('#panel-table5 td.is-highlight')).toHaveCount(0);
+  });
+
+  test('切り上げONの30符4翻でも早見表5はハイライトしない', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 4 });
+    await page.click('#btn-mangan');
+    await expect(page.locator('#hand-name')).toHaveText('満貫');
+    await expect(page.locator('#panel-table4 .score-wide .guide-cross')).toHaveCount(1);
+    await expect(page.locator('#panel-table5 .guide-cross')).toHaveCount(0);
+    await expect(page.locator('#panel-table5 td.is-highlight')).toHaveCount(0);
+  });
+
+  test('5翻以上では従来通り早見表5だけがハイライトする', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 5 });
+    await expect(page.locator('#hand-name')).toHaveText('満貫');
+    await expect(page.locator('#panel-table5 .score-wide .guide-cross')).toHaveCount(1);
+    await expect(page.locator('#panel-table4 .guide-cross')).toHaveCount(0);
+  });
+});
