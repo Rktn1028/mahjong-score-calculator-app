@@ -1615,6 +1615,48 @@
         }
       }
 
+      // ============================================================
+      // 早見表（4・5）の表示／非表示
+      // ハイライトの対象が確定している間（4つの入力がすべて選択され、
+      // 計算結果が表示されている間）だけ、対象でない側の表を隠す。
+      // 対象の判定はハイライトの居場所と同じ条件で行う:
+      //   1〜4翻（3・4翻の満貫や切り上げON時の満貫を含む）→ 表4
+      //   5翻以上 → 表5
+      // 対象がないとき（未入力・入力途中・入力Clear後）はすべて表示する。
+      // 端末による単位の違い（PC=カード全体／スマホ=親・子の表ごと）は
+      // 既存のCSS表示切替に任せ、ここでは画面幅で分岐しない:
+      // 「対象でないカードを隠す」「対象カード内で選択と一致しない側の
+      // .split-block を隠す」を常に行う（PCでは .score-split 自体が
+      // CSSで非表示なので、後者は見た目に影響しない）。
+      // ============================================================
+      function updateTableVisibility(baseInfo) {
+        var target = null;
+        if (baseInfo) {
+          if (state.han >= 1 && state.han <= 4) target = el.panel4;
+          else if (state.han >= 5 && baseInfo.name) target = el.panel5;
+        }
+        [el.panel4, el.panel5].forEach(function (panel) {
+          if (!panel) return;
+          var isTarget = target !== null && panel === target;
+          // 対象が確定しているときは、対象でないカード全体を隠す
+          panel.style.display = target !== null && !isTarget ? "none" : "";
+          // 対象カード内では、選択した親/子と一致しない側の表を隠す
+          // （親/子の判別は見出し .split-head のテキストで行う）
+          var seenVisible = false;
+          panel.querySelectorAll(".score-split .split-block").forEach(function (block) {
+            var head = block.querySelector(".split-head");
+            var blockIsDealer = !!head && head.textContent.trim() === "親";
+            var hideBlock = isTarget && blockIsDealer !== state.dealer;
+            block.style.display = hideBlock ? "none" : "";
+            // 先行する表が隠れて先頭になった表は、表同士の間隔を消して詰める
+            if (!hideBlock) {
+              block.style.marginTop = seenVisible ? "" : "0px";
+              seenVisible = true;
+            }
+          });
+        });
+      }
+
       // ---- 満貫切り上げスイッチの描画 ----
       // スイッチはカード2右上に常時表示する。enabled が false のとき
       // （対象外のパターン、または結果が表示されていない状態）は
@@ -1690,6 +1732,8 @@
           renderManganSwitch(false);
           clearTableHighlights();
           updateKiriageTableNumbers();
+          // 対象がないときは、早見表をすべて表示に戻す
+          updateTableVisibility(null);
           return;
         }
 
@@ -1790,6 +1834,9 @@
         // 早見表で、現在の入力に該当する位置をハイライトする
         // ハイライトは答えの居場所だけ：1〜4翻は表4のみ、5翻以上は表5のみ
         updateTableHighlights(b);
+
+        // ハイライトの対象でない側の早見表を隠す（対象の判定はハイライトと同じ）
+        updateTableVisibility(b);
 
         // 早見表（4）の対象セルの表記を、スイッチの状態に合わせて切り替える
         updateKiriageTableNumbers();

@@ -208,6 +208,92 @@ test.describe('満貫切り上げスイッチ（#2の仕様）', () => {
   });
 });
 
+// ==== 表の表示/非表示（Issue #5の仕様） ====
+test.describe('表の表示/非表示（#5）', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(APP_URL);
+  });
+
+  test('初期状態ではカード4・カード5の両方が表示される', async ({ page }) => {
+    await expect(page.locator('#panel-table4')).toBeVisible();
+    await expect(page.locator('#panel-table5')).toBeVisible();
+  });
+
+  test('1〜4翻の結果ではカード5が消え、カード4だけが残る', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 3 });
+    await expect(page.locator('#panel-table4')).toBeVisible();
+    await expect(page.locator('#panel-table5')).toBeHidden();
+  });
+
+  test('3・4翻の満貫（40符4翻）でもカード4だけが残る', async ({ page }) => {
+    await select(page, { dealer: true, tsumo: true, fu: 40, han: 4 });
+    await expect(page.locator('#panel-table4')).toBeVisible();
+    await expect(page.locator('#panel-table5')).toBeHidden();
+  });
+
+  test('切り上げONの30符4翻でもカード4だけが残る', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 4 });
+    await page.click('#btn-mangan');
+    await expect(page.locator('#panel-table4')).toBeVisible();
+    await expect(page.locator('#panel-table5')).toBeHidden();
+  });
+
+  test('5翻以上ではカード4が消え、カード5だけが残る', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 5 });
+    await expect(page.locator('#panel-table4')).toBeHidden();
+    await expect(page.locator('#panel-table5')).toBeVisible();
+  });
+
+  test('条件を変えて対象が移ると、表示される表も追従する', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 5 });
+    await expect(page.locator('#panel-table4')).toBeHidden();
+    await page.locator('#han-chips button[data-han="3"]').click();
+    await expect(page.locator('#panel-table4')).toBeVisible();
+    await expect(page.locator('#panel-table5')).toBeHidden();
+  });
+
+  test('入力Clearで両方の表が表示に戻る', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 5 });
+    await expect(page.locator('#panel-table4')).toBeHidden();
+    await page.getByRole('button', { name: '入力Clear' }).click();
+    await expect(page.locator('#panel-table4')).toBeVisible();
+    await expect(page.locator('#panel-table5')).toBeVisible();
+  });
+
+  test('入力途中（未完了）では両方の表が表示されたまま', async ({ page }) => {
+    await page.click('#btn-child');
+    await page.click('#btn-ron');
+    await expect(page.locator('#panel-table4')).toBeVisible();
+    await expect(page.locator('#panel-table5')).toBeVisible();
+  });
+});
+
+test.describe('表の表示/非表示（#5・スマホ）', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto(APP_URL);
+  });
+
+  test('子の結果ではカード4の子表だけが残り、親表とカード5が消える', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 3 });
+    const koBlock = page.locator('#panel-table4 .split-block', { has: page.locator('.split-head', { hasText: '子' }) });
+    const oyaBlock = page.locator('#panel-table4 .split-block', { has: page.locator('.split-head', { hasText: '親' }) });
+    await expect(koBlock).toBeVisible();
+    await expect(oyaBlock).toBeHidden();
+    await expect(page.locator('#panel-table5')).toBeHidden();
+  });
+
+  test('親の5翻ではカード5の親表だけが残り、子表とカード4が消える', async ({ page }) => {
+    await select(page, { dealer: true, tsumo: false, fu: 30, han: 5 });
+    const oyaBlock = page.locator('#panel-table5 .split-block', { has: page.locator('.split-head', { hasText: '親' }) });
+    const koBlock = page.locator('#panel-table5 .split-block', { has: page.locator('.split-head', { hasText: '子' }) });
+    await expect(oyaBlock).toBeVisible();
+    await expect(koBlock).toBeHidden();
+    await expect(page.locator('#panel-table4')).toBeHidden();
+  });
+});
+
 test.describe('ハイライト整理（#4の仕様）', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(APP_URL);
