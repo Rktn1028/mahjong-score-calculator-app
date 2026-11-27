@@ -35,6 +35,11 @@
         --gold: #a97b12;
         --chip-bg: #ffffff;
         --chip-ink: #1d2b23;
+        --chip-border: #93a894;
+        --chip-shadow: 0 2px 5px rgba(23, 42, 30, 0.2), 0 1px 1px rgba(23, 42, 30, 0.12);
+        --chip-locked-bg: #dedede;
+        --chip-locked-ink: #8a918c;
+        --chip-locked-border: #c8c8c8;
         --selected-bg: #0d5c39;
         --selected-ink: #ffffff;
         --highlight-bg: #ffd94d;
@@ -61,6 +66,11 @@
           --gold: #d9ab3c;
           --chip-bg: #1b291f;
           --chip-ink: #e9f1ea;
+          --chip-border: #57755f;
+          --chip-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+          --chip-locked-bg: #0d130e;
+          --chip-locked-ink: #5d6f61;
+          --chip-locked-border: #1e2a21;
           --selected-bg: #1d8a54;
           --selected-ink: #ffffff;
           --highlight-bg: #ffd94d;
@@ -279,9 +289,11 @@
         font-weight: 700;
         background: var(--chip-bg);
         color: var(--chip-ink);
-        border: 2px solid var(--line);
+        border: 2px solid var(--chip-border);
         border-radius: 10px;
         padding: 8px;
+        box-shadow: var(--chip-shadow);
+        transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
       }
       .segmented button[aria-pressed="true"] {
         background: var(--selected-bg);
@@ -301,9 +313,11 @@
         font-weight: 700;
         background: var(--chip-bg);
         color: var(--chip-ink);
-        border: 2px solid var(--line);
+        border: 2px solid var(--chip-border);
         border-radius: 10px;
         padding: 6px 10px;
+        box-shadow: var(--chip-shadow);
+        transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
       }
       .chips button small { font-size: 0.72rem; font-weight: 500; }
       .chips button[aria-pressed="true"] {
@@ -311,9 +325,35 @@
         border-color: var(--selected-bg);
         color: var(--selected-ink);
       }
+      /* ===== ボタン制御（Issue #6）：押せないボタンの見た目 =====
+         順番制御でロック中のボタンも、ロジック制御で押せないボタンも、
+         どちらも :disabled になる。白く浮いて見える有効ボタンと
+         一目で区別できるよう、グレー背景・薄い文字・弱い境界線・
+         影なしで、平たく「沈んで」見えるようにする。
+         ダークモードではロック側をカードより暗く落として同じ差を作る */
+      .segmented button:disabled,
       .chips button:disabled {
-        opacity: 0.35;
+        background: var(--chip-locked-bg);
+        color: var(--chip-locked-ink);
+        border-color: var(--chip-locked-border);
+        box-shadow: none;
         cursor: not-allowed;
+      }
+      /* 選択済み（緑背景・白文字）の見た目は :disabled より後に置いて優先させ、
+         現行のまま維持する */
+      .segmented button[aria-pressed="true"],
+      .chips button[aria-pressed="true"] {
+        background: var(--selected-bg);
+        border-color: var(--selected-bg);
+        color: var(--selected-ink);
+        box-shadow: var(--chip-shadow);
+      }
+      /* ロック中のボタン群は見出しも弱く表示し、群ごとロックされている
+         ことが分かるようにする */
+      .group.is-locked .group-label { color: var(--chip-locked-ink); }
+      .group.is-locked .group-label .chosen { color: var(--chip-locked-ink); }
+      @media (prefers-reduced-motion: reduce) {
+        .segmented button, .chips button { transition: none; }
       }
       /* ===== 20符・25符ボタンのツールチップ（1翻を選べない理由） ===== */
       .chip-tip { position: relative; display: inline-flex; }
@@ -824,7 +864,7 @@
       <div class="layout-top">
       <!-- ============ 1：入力（左） ============ -->
       <section class="card panel-input" aria-label="条件の入力">
-        <div class="group">
+        <div class="group" id="group-who">
           <span class="group-label" id="label-who">あがった人</span>
           <div class="segmented" role="group" aria-labelledby="label-who">
             <button type="button" id="btn-dealer" aria-pressed="false">親（東）</button>
@@ -832,7 +872,7 @@
           </div>
         </div>
 
-        <div class="group">
+        <div class="group" id="group-how">
           <span class="group-label" id="label-how">あがり方</span>
           <div class="segmented" role="group" aria-labelledby="label-how">
             <span class="chip-tip seg-tip">
@@ -843,12 +883,12 @@
           </div>
         </div>
 
-        <div class="group">
+        <div class="group" id="group-fu">
           <span class="group-label" id="label-fu">符<span class="chosen" id="fu-chosen"></span></span>
           <div class="chips" id="fu-chips" role="group" aria-labelledby="label-fu"></div>
         </div>
 
-        <div class="group">
+        <div class="group" id="group-han">
           <span class="group-label" id="label-han">翻数<span class="chosen" id="han-chosen"></span></span>
           <div class="chips" id="han-chips" role="group" aria-labelledby="label-han"></div>
         </div>
@@ -1273,6 +1313,9 @@
         tsumo: document.getElementById("btn-tsumo"),
         hanChips: document.getElementById("han-chips"),
         fuChips: document.getElementById("fu-chips"),
+        howGroup: document.getElementById("group-how"),
+        fuGroup: document.getElementById("group-fu"),
+        hanGroup: document.getElementById("group-han"),
         hanChosen: document.getElementById("han-chosen"),
         fuChosen: document.getElementById("fu-chosen"),
         handName: document.getElementById("hand-name"),
@@ -1689,6 +1732,25 @@
         // （OFFに戻るのは「入力Clear」を押したときだけ）。切り上げが効くかどうかは
         // isKiriageTarget() と effectiveFu() が都度判定する
 
+        // ===== 順番制御（Issue #6・案A）=====
+        // どのボタン群が有効かは、現在の選択状態からここ一箇所で導出して
+        // 適用する（各ボタンのイベントハンドラには無効化ロジックを置かない）。
+        //   親/子を選ぶまで      → ロン/ツモ・符・翻は押せない
+        //   ロン/ツモを選ぶまで  → 符・翻は押せない
+        //   符を選ぶまで        → 翻は押せない
+        // 案A: 上の段の選択を変更しても、下の段の選択はリセットせず保持する。
+        // 選択が null に戻るのは「入力Clear」のときだけなので、上の段を
+        // 選び直しても下の段が再びロックされることはない。
+        var howEnabled = state.dealer !== null;
+        var fuEnabled = howEnabled && state.tsumo !== null;
+        var hanEnabled = fuEnabled && state.fu !== null;
+        // ロック中のボタン群は見出しごと弱く表示する
+        if (el.howGroup) el.howGroup.classList.toggle("is-locked", !howEnabled);
+        if (el.fuGroup) el.fuGroup.classList.toggle("is-locked", !fuEnabled);
+        if (el.hanGroup) el.hanGroup.classList.toggle("is-locked", !hanEnabled);
+        el.ron.disabled = !howEnabled;
+        el.tsumo.disabled = !howEnabled;
+
         // ボタンの選択状態（未選択 = null のときはどちらも押されていない状態にする）
         el.dealer.setAttribute("aria-pressed", String(state.dealer === true));
         el.child.setAttribute("aria-pressed", String(state.dealer === false));
@@ -1698,15 +1760,18 @@
         el.hanChips.querySelectorAll("button").forEach(function (btn) {
           var h = Number(btn.getAttribute("data-han"));
           btn.setAttribute("aria-pressed", String(state.han !== null && h === state.han));
-          // 20符・25符のときだけ「1翻」ボタンを押せなくする（未選択の間は全ボタン選べる）
-          btn.disabled = fuNeedsMin2Han && h === 1;
+          // 順番制御で翻の群がロック中は全ボタンを押せなくする。
+          // 群が有効な間は、従来のロジック制御どおり20符・25符のときだけ
+          // 「1翻」ボタンを押せなくする
+          btn.disabled = !hanEnabled || (fuNeedsMin2Han && h === 1);
         });
         el.fuChips.querySelectorAll("button").forEach(function (btn) {
           var f = Number(btn.getAttribute("data-fu"));
           btn.setAttribute("aria-pressed", String(state.fu !== null && f === state.fu));
-          // ロンのときだけ「20符」ボタンを押せなくする（20符は平和ツモのみ）
-          // 未選択（tsumo === null）の間は押せるままにする
-          btn.disabled = state.tsumo === false && f === 20;
+          // 順番制御で符の群がロック中は全ボタンを押せなくする。
+          // 群が有効な間は、従来のロジック制御どおりロンのときだけ
+          // 「20符」ボタンを押せなくする（20符は平和ツモのみ）
+          btn.disabled = !fuEnabled || (state.tsumo === false && f === 20);
         });
         el.hanChosen.textContent =
           state.han === null ? "" : state.han >= 13 ? "13翻以上" : state.han + "翻";
