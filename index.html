@@ -355,7 +355,10 @@
       @media (prefers-reduced-motion: reduce) {
         .segmented button, .chips button { transition: none; }
       }
-      /* ===== 20符・25符ボタンのツールチップ（1翻を選べない理由） ===== */
+      /* ===== 選択不可TIPS（Issue #11） =====
+         バブルは「押せない理由があるボタン」にだけ付ける（20符チップと
+         1翻チップ）。表示できるかどうかは render() が現在の選択状態から
+         導出して .tip-active を付け外しし、ホバーはそのときだけ効く */
       .chip-tip { position: relative; display: inline-flex; }
       .tip-bubble {
         position: absolute;
@@ -389,19 +392,10 @@
         border-bottom: none;
       }
       /* 表示はホバーしている間だけ：フォーカスやクリックでは出さない
-         （クリック後に残ると、もう一方のツールチップと同時に出てしまうため） */
-      .chip-tip:hover .tip-bubble {
-        opacity: 1;
-        visibility: visible;
-        transform: translateY(0);
-      }
-      /* ===== ロンボタンのツールチップ（20符は選べない旨） =====
-         segmented のグリッド1マスに収まるよう、ラッパーはブロック表示にして
-         中のボタンをラッパーいっぱいに広げる。表示条件は符チップと同じくホバーの間だけ */
-      .seg-tip { display: block; }
-      .seg-tip button { width: 100%; height: 100%; }
-      .seg-tip .tip-bubble { left: 0; }
-      .seg-tip:hover .tip-bubble {
+         （クリック後に残ると、もう一方のツールチップと同時に出てしまうため）。
+         さらに、理由が成立していない状態（.tip-active が付いていないとき）は
+         ホバーしても出さない */
+      .chip-tip.tip-active:hover .tip-bubble {
         opacity: 1;
         visibility: visible;
         transform: translateY(0);
@@ -818,7 +812,7 @@
           padding: 4px 0;
           border-radius: 8px;
         }
-        /* ツールチップ付きチップ（20符・25符）はグリッドのマスいっぱいに広げる */
+        /* ツールチップ付きチップ（20符・1翻）はグリッドのマスいっぱいに広げる */
         .panel-input .chip-tip { display: flex; }
         .panel-input .chip-tip button { flex: 1 1 auto; }
       }
@@ -875,10 +869,7 @@
         <div class="group" id="group-how">
           <span class="group-label" id="label-how">あがり方</span>
           <div class="segmented" role="group" aria-labelledby="label-how">
-            <span class="chip-tip seg-tip">
-              <button type="button" id="btn-ron" aria-pressed="false" aria-describedby="tip-ron">ロン</button>
-              <span class="tip-bubble" id="tip-ron" role="tooltip">20符は平和ツモのみのため、ロンでは20符を選べません</span>
-            </span>
+            <button type="button" id="btn-ron" aria-pressed="false">ロン</button>
             <button type="button" id="btn-tsumo" aria-pressed="false">ツモ</button>
           </div>
         </div>
@@ -1334,7 +1325,21 @@
         manganBtnText: document.getElementById("mangan-btn-text")
       };
 
+      // ===== 選択不可TIPS（Issue #11）=====
+      // バブルを持つのは「押せない理由」を伝える2か所だけ:
+      //   20符チップ … ロンを選んでいるために20符が押せない理由
+      //   1翻チップ  … 20符・25符を選んでいるために1翻が押せない理由
+      //   （文言は選んでいる符で切り替える）
+      // どちらのバブルも常設するが、ホバーで出せるかどうか（.tip-active）は
+      // render() が現在の選択状態から一箇所で導出して付け外しする。
+      // ここではラッパーとバブルへの参照だけを控えておく
+      var fu20TipWrap = null;
+      var han1TipWrap = null;
+      var han1TipBubble = null;
+
       // 翻チップを生成
+      // 1翻チップにはバブルを付ける（20符・25符のときに1翻が押せない理由。
+      // 文言は render() が選ばれている符に合わせて差し替える）
       HAN_LIST.forEach(function (h) {
         var btn = document.createElement("button");
         btn.type = "button";
@@ -1345,16 +1350,28 @@
           state.han = h;
           render();
         });
-        el.hanChips.appendChild(btn);
+        if (h === 1) {
+          var hanWrap = document.createElement("span");
+          hanWrap.className = "chip-tip";
+          var hanTip = document.createElement("span");
+          hanTip.className = "tip-bubble";
+          hanTip.id = "tip-han-1";
+          hanTip.setAttribute("role", "tooltip");
+          btn.setAttribute("aria-describedby", hanTip.id);
+          hanWrap.appendChild(btn);
+          hanWrap.appendChild(hanTip);
+          han1TipWrap = hanWrap;
+          han1TipBubble = hanTip;
+          el.hanChips.appendChild(hanWrap);
+        } else {
+          el.hanChips.appendChild(btn);
+        }
       });
 
       // 符チップを生成
-      // 20符・25符は最低2翻になる符なので、ボタン上をホバーしている間だけ
-      // 「1翻を選べない理由」をツールチップで表示する
-      var FU_TOOLTIPS = {
-        20: "20符は平和ツモ（最低2翻）のため、1翻は選べません",
-        25: "25符は七対子（最低2翻）のため、1翻は選べません"
-      };
+      // 20符チップにはバブルを付ける（ロンのときに20符が押せない理由）。
+      // 25符チップに付いていた旧バブル（1翻の理由）は廃止し、その理由は
+      // 1翻チップ側のバブルで伝える
       FU_LIST.forEach(function (f) {
         var btn = document.createElement("button");
         btn.type = "button";
@@ -1367,19 +1384,19 @@
           if ((f === 20 || f === 25) && state.han === 1) state.han = 2;
           render();
         });
-        var tipText = FU_TOOLTIPS[f];
-        if (tipText) {
-          var wrap = document.createElement("span");
-          wrap.className = "chip-tip";
-          var tip = document.createElement("span");
-          tip.className = "tip-bubble";
-          tip.id = "tip-fu-" + f;
-          tip.setAttribute("role", "tooltip");
-          tip.textContent = tipText;
-          btn.setAttribute("aria-describedby", tip.id);
-          wrap.appendChild(btn);
-          wrap.appendChild(tip);
-          el.fuChips.appendChild(wrap);
+        if (f === 20) {
+          var fuWrap = document.createElement("span");
+          fuWrap.className = "chip-tip";
+          var fuTip = document.createElement("span");
+          fuTip.className = "tip-bubble";
+          fuTip.id = "tip-fu-20";
+          fuTip.setAttribute("role", "tooltip");
+          fuTip.textContent = "20符はピンフツモの場合のみ成立します。ロンでは20符を選べません。";
+          btn.setAttribute("aria-describedby", fuTip.id);
+          fuWrap.appendChild(btn);
+          fuWrap.appendChild(fuTip);
+          fu20TipWrap = fuWrap;
+          el.fuChips.appendChild(fuWrap);
         } else {
           el.fuChips.appendChild(btn);
         }
@@ -1773,6 +1790,29 @@
           // 「20符」ボタンを押せなくする（20符は平和ツモのみ）
           btn.disabled = !fuEnabled || (state.tsumo === false && f === 20);
         });
+        // ===== 選択不可TIPSの表示可否（Issue #11）=====
+        // バブルをホバーで出せるのは、「そのボタンが理由のある事情で
+        // 押せない状態」のときだけ。順番制御でロック中のだけの状態や、
+        // ふつうに押せる状態では出さない。判定は選択状態からここ一箇所で
+        // 導出し、ラッパーへの .tip-active の付け外しで適用する
+        // （表示そのものは CSS のホバー規則が担う）。
+        //   20符チップ: 符の群が有効で、ロンが選ばれているために
+        //     20符が押せないときだけ
+        //   1翻チップ: 翻の群が有効で、20符・25符が選ばれているために
+        //     1翻が押せないときだけ（文言は選ばれている符で切り替える）
+        if (fu20TipWrap) {
+          fu20TipWrap.classList.toggle("tip-active", fuEnabled && state.tsumo === false);
+        }
+        if (han1TipWrap) {
+          var han1TipOn = hanEnabled && fuNeedsMin2Han;
+          han1TipWrap.classList.toggle("tip-active", han1TipOn);
+          if (han1TipOn && han1TipBubble) {
+            han1TipBubble.textContent = state.fu === 20
+              ? "20符はピンフツモ(2翻)の場合のみ成立します。1翻は選べません。"
+              : "25符は七対子(2翻)の場合のみ成立します。1翻は選べません。";
+          }
+        }
+
         el.hanChosen.textContent =
           state.han === null ? "" : state.han >= 13 ? "13翻以上" : state.han + "翻";
         el.fuChosen.textContent = state.fu === null ? "" : state.fu + "符";

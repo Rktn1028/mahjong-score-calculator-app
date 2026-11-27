@@ -370,3 +370,61 @@ test.describe('ボタン制御（#6の仕様）', () => {
     await expect(page.locator('#han-chips button[data-han="3"]')).toBeDisabled();
   });
 });
+
+// ==== TIPS表示（Issue #11の仕様） ====
+test.describe('TIPS表示（#11の仕様）', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(APP_URL);
+  });
+
+  test('ロン選択中は、押せない20符ボタン自身にTIPSが出る', async ({ page }) => {
+    await page.click('#btn-child');
+    await page.click('#btn-ron');
+    await page.locator('#fu-chips button[data-fu="20"]').hover();
+    const tip = page.locator('#tip-fu-20');
+    await expect(tip).toBeVisible();
+    await expect(tip).toHaveText('20符はピンフツモの場合のみ成立します。ロンでは20符を選べません。');
+  });
+
+  test('ツモ選択中（20符が選べる状態）では20符にTIPSは出ない', async ({ page }) => {
+    await page.click('#btn-child');
+    await page.click('#btn-tsumo');
+    await page.locator('#fu-chips button[data-fu="20"]').hover();
+    await expect(page.locator('#tip-fu-20')).toBeHidden();
+  });
+
+  test('初期状態（順番制御でロック中）は20符にTIPSは出ない', async ({ page }) => {
+    await page.locator('#fu-chips button[data-fu="20"]').hover();
+    await expect(page.locator('#tip-fu-20')).toBeHidden();
+  });
+
+  test('20符選択中は、押せない1翻ボタン自身にTIPSが出る', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: true, fu: 20, han: 2 });
+    await page.locator('#han-chips button[data-han="1"]').hover();
+    const tip = page.locator('#tip-han-1');
+    await expect(tip).toBeVisible();
+    await expect(tip).toHaveText('20符はピンフツモ(2翻)の場合のみ成立します。1翻は選べません。');
+  });
+
+  test('25符選択中は、1翻のTIPSが25符用の文言になる', async ({ page }) => {
+    await page.click('#btn-child');
+    await page.click('#btn-tsumo');
+    await page.locator('#fu-chips button[data-fu="25"]').click();
+    await page.locator('#han-chips button[data-han="1"]').hover();
+    const tip = page.locator('#tip-han-1');
+    await expect(tip).toBeVisible();
+    await expect(tip).toHaveText('25符は七対子(2翻)の場合のみ成立します。1翻は選べません。');
+  });
+
+  test('1翻が選べる状態（30符）では1翻にTIPSは出ない', async ({ page }) => {
+    await page.click('#btn-child');
+    await page.click('#btn-ron');
+    await page.locator('#fu-chips button[data-fu="30"]').click();
+    await page.locator('#han-chips button[data-han="1"]').hover();
+    await expect(page.locator('#tip-han-1')).toBeHidden();
+  });
+
+  test('ロンボタン自身のTIPSは廃止された', async ({ page }) => {
+    await expect(page.locator('#tip-ron')).toHaveCount(0);
+  });
+});
