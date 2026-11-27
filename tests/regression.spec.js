@@ -61,9 +61,8 @@ test.describe('ロジック制御', () => {
   });
 
   test('20符を選ぶと1翻は選べなくなり、1翻のままなら2翻に動く', async ({ page }) => {
-    await page.click('#btn-child');
-    await page.click('#btn-tsumo');
-    await page.locator('#han-chips button[data-han="1"]').click();
+    // #6の順番制御では符を先に選ぶので、30符・1翻を選んでから符を20符に変える経路で確かめる（案A）
+    await select(page, { dealer: false, tsumo: true, fu: 30, han: 1 });
     await page.locator('#fu-chips button[data-fu="20"]').click();
     // 1翻ボタンが無効になり、2翻が選ばれた状態になる
     await expect(page.locator('#han-chips button[data-han="1"]')).toBeDisabled();
@@ -322,5 +321,52 @@ test.describe('ハイライト整理（#4の仕様）', () => {
     await expect(page.locator('#hand-name')).toHaveText('満貫');
     await expect(page.locator('#panel-table5 .score-wide .guide-cross')).toHaveCount(1);
     await expect(page.locator('#panel-table4 .guide-cross')).toHaveCount(0);
+  });
+});
+
+// ==== ボタン制御（Issue #6の仕様） ====
+test.describe('ボタン制御（#6の仕様）', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(APP_URL);
+  });
+
+  test('初期状態では親/子だけが押せる', async ({ page }) => {
+    await expect(page.locator('#btn-dealer')).toBeEnabled();
+    await expect(page.locator('#btn-child')).toBeEnabled();
+    await expect(page.locator('#btn-ron')).toBeDisabled();
+    await expect(page.locator('#btn-tsumo')).toBeDisabled();
+    await expect(page.locator('#fu-chips button[data-fu="30"]')).toBeDisabled();
+    await expect(page.locator('#han-chips button[data-han="3"]')).toBeDisabled();
+  });
+
+  test('段を選ぶごとに次の段だけが解放される', async ({ page }) => {
+    await page.click('#btn-child');
+    await expect(page.locator('#btn-ron')).toBeEnabled();
+    await expect(page.locator('#fu-chips button[data-fu="30"]')).toBeDisabled();
+    await expect(page.locator('#han-chips button[data-han="3"]')).toBeDisabled();
+    await page.click('#btn-ron');
+    await expect(page.locator('#fu-chips button[data-fu="30"]')).toBeEnabled();
+    await expect(page.locator('#han-chips button[data-han="3"]')).toBeDisabled();
+    await page.locator('#fu-chips button[data-fu="30"]').click();
+    await expect(page.locator('#han-chips button[data-han="3"]')).toBeEnabled();
+  });
+
+  test('案A：上の段を変更しても下の段の選択が保持される', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 3 });
+    await expect(page.locator('#score-main')).toContainText('3,900');
+    await page.click('#btn-dealer');
+    // 親に変えても30符・3翻は残り、親・ロン・30符・3翻の点数になる
+    await expect(page.locator('#fu-chips button[data-fu="30"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#han-chips button[data-han="3"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#score-main')).toContainText('5,800');
+  });
+
+  test('入力Clearで親/子だけが押せる状態に戻る', async ({ page }) => {
+    await select(page, { dealer: false, tsumo: false, fu: 30, han: 3 });
+    await page.click('#btn-clear');
+    await expect(page.locator('#btn-child')).toBeEnabled();
+    await expect(page.locator('#btn-ron')).toBeDisabled();
+    await expect(page.locator('#fu-chips button[data-fu="30"]')).toBeDisabled();
+    await expect(page.locator('#han-chips button[data-han="3"]')).toBeDisabled();
   });
 });
